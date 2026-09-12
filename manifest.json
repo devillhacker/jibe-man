@@ -1,0 +1,39 @@
+{
+  "name": "جیب من — مدیریت مالی",
+  "short_name": "جیب من",
+  "description": "مدیریت مالی شخصی، ساده و سریع",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f8fafc",
+  "theme_color": "#ef4444",
+  "lang": "fa",
+  "dir": "rtl",
+  "categories": ["finance", "productivity"],
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "ثبت هزینه سریع",
+      "short_name": "هزینه جدید",
+      "url": "./index.html?action=add-expense",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "اقساط",
+      "short_name": "اقساط",
+      "url": "./index.html?action=installments",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "برنامه‌ریزی",
+      "short_name": "برنامه",
+      "url": "./index.html?action=plan",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}
