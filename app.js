@@ -278,19 +278,26 @@ function jalaliMonthLength(jy,jm){
   return ((jy+12)%33)%4===0?30:29;
 }
 function jalaliToGregorian(jy,jm,jd){
-  const total = jdn(jy,jm,jd) - jdn(1,1,1);
-  const b=new Date(622,2,21);
-  b.setDate(b.getDate()+total);
-  return b;
-}
-function jdn(jy,jm,jd){
-  const epbase=jy-474;
-  const epyear=474+(epbase%2820);
-  return jd + (jm<=7?(jm-1)*31:(jm-1)*30+6)
-    + Math.floor((epyear*682-110)/2816)
-    + (epyear-1)*365
-    + Math.floor(epbase/2820)*1029983
-    + 1948320;
+  // تبدیل شمسی به میلادی با استفاده از Intl
+  // این روش دقیق‌تره چون از خود مرورگر استفاده می‌کنه
+  
+  // میانگین: هر سال شمسی ≈ 365.2425 روز
+  // مبدأ: 1/1/1 شمسی = 622/3/21 میلادی
+  
+  const totalDays = (jy - 1) * 365.2425 + (jm - 1) * 30.44 + (jd - 1);
+  const baseDate = new Date(622, 2, 21); // 21 مارس 622
+  baseDate.setDate(baseDate.getDate() + Math.floor(totalDays));
+  
+  // اصلاح دقیق‌تر با روش Intl
+  let guess = new Date(baseDate);
+  for (let i = 0; i < 5; i++) {
+    const j = toJalaliParts(guess);
+    const diff = (jy - j.y) * 365 + (jm - j.m) * 30 + (jd - j.d);
+    if (diff === 0) break;
+    guess.setDate(guess.getDate() + diff);
+  }
+  
+  return guess;
 }
 function addJalaliMonths(jy, jm, n){
   let total = jy*12 + (jm-1) + n;
