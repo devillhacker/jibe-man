@@ -502,48 +502,58 @@ $('authForm').addEventListener('submit', async (e)=>{
     btn.textContent = authMode==='login' ? 'ورود' : 'ثبت‌نام';
   }
 });
-
 async function onUserLoggedIn(){
-  $('userEmail').textContent = state.currentUser.email || '';
-  
-  const lastUserKey = 'jib_last_user_id';
-  const lastUserId = localStorage.getItem(lastUserKey);
-  const currentUserId = state.currentUser.id;
-  const userChanged = lastUserId && lastUserId !== currentUserId;
-  
-  if(userChanged){
-    console.log('🔄 کاربر عوض شد، داده‌های محلی پاک می‌شن');
-    state.data = JSON.parse(JSON.stringify(defaultData));
-    localStorage.removeItem(STORAGE_KEY);
-    showToast('کاربر عوض شد');
+  // 🔐 اول از session کاربر فعلی رو بگیر
+  const realUserId = await getCurrentUserId();
+  if(!realUserId){
+    console.error('❌ کاربر لاگین نیست!');
+    showAuthScreen();
+    return;
   }
   
-  localStorage.setItem(lastUserKey, currentUserId);
+  // 🔐 کاربر فعلی رو ست کن
+  state.currentUser = { id: realUserId, email: currentUser?.email || '' };
+  $('userEmail').textContent = state.currentUser.email || '';
   
+  // 🔐 چک کن کاربر عوض شده
+  const lastUserKey = 'jib_last_user_id';
+  const lastUserId = localStorage.getItem(lastUserKey);
+  const userChanged = lastUserId && lastUserId !== realUserId;
+  
+  // 🔐 اگه کاربر عوض شده → localStorage رو کاملاً پاک کن
+  if(userChanged){
+    console.log('🔄 کاربر عوض شد! پاک کردن داده‌های محلی');
+    state.data = JSON.parse(JSON.stringify(defaultData));
+    localStorage.removeItem(STORAGE_KEY);
+    showToast('کاربر عوض شد، داده‌های قبلی پاک شد');
+  }
+  
+  // 🔐 کاربر فعلی رو ذخیره کن
+  localStorage.setItem(lastUserKey, realUserId);
+  
+  // 🔐 همیشه از سرور بگیر (امن‌ترین روش)
   try{
-    const localHasData = state.data.accounts.length > 0 || state.data.transactions.length > 0;
+    console.log('📥 دریافت داده‌های کاربر از سرور...');
+    const cloud = await downloadFromCloud();
     
-    if(!localHasData){
-      try{
-        const cloud = await downloadFromCloud();
-        if(cloud.accounts.length || cloud.transactions.length){
-          state.data.accounts = cloud.accounts;
-          state.data.transactions = cloud.transactions;
-          state.data.installments = cloud.installments;
-          state.data.plans = cloud.plans;
-          if(cloud.categories) state.data.categories = cloud.categories;
-          if(cloud.settings) state.data.settings = Object.assign(state.data.settings, cloud.settings);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data));
-          showToast('✅ داده‌ها از سرور دریافت شد');
-        }
-      }catch(e){ console.warn('دانلود اولیه ناموفق:', e); }
-    } else {
-      showToast('در حال آپلود داده‌ها به سرور...');
-      await uploadToCloud(state.data);
-      showToast('✅ داده‌ها به سرور منتقل شد');
+    state.data.accounts = cloud.accounts || [];
+    state.data.transactions = cloud.transactions || [];
+    state.data.installments = cloud.installments || [];
+    state.data.plans = cloud.plans || {};
+    if(cloud.categories) state.data.categories = cloud.categories;
+    if(cloud.settings) state.data.settings = Object.assign(state.data.settings, cloud.settings);
+    
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data));
+    
+    if(cloud.accounts.length || cloud.transactions.length){
+      showToast('✅ داده‌ها از سرور دریافت شد');
     }
-  }catch(e){ console.error('خطا در سینک اولیه:', e); }
+  }catch(e){
+    console.error('❌ خطا در دریافت:', e);
+    showToast('خطا در اتصال به سرور');
+  }
 
+  // 🔐 رندر
   if(!state.data.settings.setupDone || !state.data.accounts.length){
     $('setupScreen').classList.remove('hidden');
     $('mainApp').classList.add('hidden');
