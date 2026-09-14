@@ -1560,15 +1560,14 @@ async function init(){
     await initSupabase();
     const logged = await checkAuth();
     if(logged){
-      state.currentUser = currentUser;
+      // 🔐 چک کن کاربر عوض شده
       const lastUserId = localStorage.getItem('jib_last_user_id');
       if(lastUserId && lastUserId !== currentUser.id){
         console.log('🔄 کاربر عوض شد!');
-        if(typeof clearLocalData === 'function') clearLocalData();
+        localStorage.removeItem(STORAGE_KEY);
         state.data = JSON.parse(JSON.stringify(defaultData));
       }
-      if(typeof saveCurrentUser === 'function') saveCurrentUser(currentUser.id);
-      else localStorage.setItem('jib_last_user_id', currentUser.id);
+      localStorage.setItem('jib_last_user_id', currentUser.id);
       
       hideAuthScreen();
       setTimeout(onUserLoggedIn, 100);
