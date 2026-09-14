@@ -271,46 +271,66 @@ function jalaliMonthLength(jy,jm){
 function jalaliToGregorian(jy, jm, jd) {
   jy = parseInt(jy); jm = parseInt(jm); jd = parseInt(jd);
   
-  // مبدأ دقیق: 1/1/1400 = 21 مارس 2021
-  const baseYear = 1400;
-  const baseDate = new Date(2021, 2, 21);
-  baseDate.setHours(0, 0, 0, 0);
+  // روش ساده و مطمئن: یه تاریخ میلادی حدس بزن، بعد تست کن
+  // اگه شمسی برگشتی برابر نبود، ۱ روز جابجا کن
   
-  // تخمین اولیه
-  let diffDays = 0;
-  const yearDiff = jy - baseYear;
-  diffDays += Math.floor(yearDiff * 365.2425);
+  // تخمین اولیه: 1/1/1400 = 21/3/2021
+  const baseDate = new Date(2021, 2, 21); // 21 مارس 2021
+  baseDate.setHours(12, 0, 0, 0); // ظهر (برای جلوگیری از مشکل timezone)
   
-  const monthDays = [31, 31, 31, 31, 31, 31, 30, 30, 30, 30, 30, 29];
-  for (let m = 0; m < jm - 1; m++) {
-    diffDays += monthDays[m];
+  // تعداد روز تخمینی از 1/1/1400 تا تاریخ هدف
+  const daysInMonth = [31, 31, 31, 31, 31, 31, 30, 30, 30, 30, 30, 29];
+  
+  let totalDays = (jy - 1400) * 365;
+  
+  // اضافه کردن کبیسه‌ها (تقریبی)
+  if (jy > 1400) {
+    totalDays += Math.floor((jy - 1400) * 0.2425) + 1;
   }
-  diffDays += jd - 1;
+  
+  // اضافه کردن ماه‌ها
+  for (let m = 0; m < jm - 1; m++) {
+    totalDays += daysInMonth[m];
+  }
+  
+  // اضافه کردن روز
+  totalDays += jd - 1;
   
   // تخمین اول
   let guess = new Date(baseDate);
-  guess.setDate(guess.getDate() + diffDays);
-  guess.setHours(0, 0, 0, 0);
+  guess.setDate(guess.getDate() + totalDays);
+  guess.setHours(12, 0, 0, 0);
   
-  // ✅ اصلاح دقیق با Intl (تا ۱۰ بار)
-  for (let i = 0; i < 10; i++) {
+  // ✅ اصلاح دقیق: به جای محاسبه، روز به روز چک کن
+  // چک کن شمسی guess چی می‌ده
+  let maxIterations = 400; // حداکثر ۴۰۰ بار (برای سال‌های دور)
+  let iterations = 0;
+  
+  while (iterations < maxIterations) {
+    iterations++;
+    
     const j = toJalaliParts(guess);
     
-    if (j.y === jy && j.m === jm && j.d === jd) break;
+    if (j.y === jy && j.m === jm && j.d === jd) {
+      // درست شد
+      break;
+    }
     
     // محاسبه اختلاف
-    let dayDiff = 0;
     const yDiff = jy - j.y;
     const mDiff = jm - j.m;
     const dDiff = jd - j.d;
     
-    if (yDiff !== 0) dayDiff += yDiff * 365;
-    if (mDiff !== 0) dayDiff += mDiff * 30;
-    dayDiff += dDiff;
-    
-    if (dayDiff === 0) break;
-    
-    guess.setDate(guess.getDate() + dayDiff);
+    // اگه سال فرق داره، خیلی جابجا شو
+    if (yDiff !== 0) {
+      guess.setFullYear(guess.getFullYear() + yDiff);
+    } else if (mDiff !== 0) {
+      guess.setMonth(guess.getMonth() + mDiff);
+    } else if (dDiff !== 0) {
+      guess.setDate(guess.getDate() + dDiff);
+    } else {
+      break;
+    }
   }
   
   guess.setHours(0, 0, 0, 0);
