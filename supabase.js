@@ -5,14 +5,15 @@
 const SUPABASE_URL = 'https://lwqaltkojnnxilurzngr.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx3cWFsdGtvam5ueGlsdXJ6bmdyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzNjk0NTgsImV4cCI6MjEwNDk0NTQ1OH0.RxOM4PYCX7dmGd_DM-V-oborlCUJY94tT2MVt-BhnB4';
 
+const LAST_USER_KEY = 'jib_last_user_id';
+
 let sbClient = null;
 let currentUser = null;
-let syncStatus = 'offline'; // 'online' | 'syncing' | 'offline' | 'pending'
+let syncStatus = 'offline';
 
 /* ===== بارگذاری کتابخانه Supabase ===== */
 async function initSupabase() {
   try {
-    // بارگذاری کتابخانه از CDN
     if (!window.supabase) {
       await loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2');
     }
@@ -26,7 +27,6 @@ async function initSupabase() {
       }
     });
     
-    // چک کردن session فعلی
     const { data: { session } } = await sbClient.auth.getSession();
     if (session) {
       currentUser = session.user;
@@ -89,6 +89,46 @@ async function checkAuth() {
     return true;
   }
   return false;
+}
+
+/* ===== 🔐 چک کن کاربر عوض شده یا نه ===== */
+function checkUserChanged(userId) {
+  const lastUserId = localStorage.getItem(LAST_USER_KEY);
+  if (lastUserId && lastUserId !== userId) {
+    console.log('🔄 کاربر عوض شده! پاک کردن داده‌های محلی...');
+    return true;
+  }
+  return false;
+}
+
+/* ===== 🔐 ذخیره کاربر فعلی ===== */
+function saveCurrentUser(userId) {
+  localStorage.setItem(LAST_USER_KEY, userId);
+}
+
+/* ===== 🔐 پاک کردن داده‌های کاربر قبلی ===== */
+function clearLocalData() {
+  try {
+    localStorage.removeItem('jib_man_v9');
+    localStorage.removeItem('jib_man_v8');
+    localStorage.removeItem('jib_man_v7');
+    localStorage.removeItem('jib_man_v6');
+    localStorage.removeItem('jib_man_v5');
+    console.log('🧹 داده‌های محلی پاک شد');
+  } catch(e){ console.error(e); }
+}
+
+/* ===== 🔐 پاک کردن کامل کاربر (Logout) ===== */
+function clearAllUserData() {
+  try {
+    localStorage.removeItem('jib_man_v9');
+    localStorage.removeItem('jib_man_v8');
+    localStorage.removeItem('jib_man_v7');
+    localStorage.removeItem('jib_man_v6');
+    localStorage.removeItem('jib_man_v5');
+    localStorage.removeItem(LAST_USER_KEY);
+    console.log('🧹 همه داده‌های محلی پاک شد');
+  } catch(e){ console.error(e); }
 }
 
 /* ===== آپلود به Supabase ===== */
