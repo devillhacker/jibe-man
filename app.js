@@ -479,14 +479,12 @@ $('authForm').addEventListener('submit', async (e)=>{
       await signIn(email, password);
     }
     state.currentUser = currentUser;
-    // 🔐 چک کن کاربر عوض شده یا نه
     const lastUserId = localStorage.getItem('jib_last_user_id');
     if(lastUserId && lastUserId !== currentUser.id){
       console.log('🔄 کاربر عوض شد! پاک کردن داده‌های محلی...');
       if(typeof clearLocalData === 'function') clearLocalData();
       state.data = JSON.parse(JSON.stringify(defaultData));
     }
-    // ذخیره کاربر فعلی
     if(typeof saveCurrentUser === 'function') saveCurrentUser(currentUser.id);
     else localStorage.setItem('jib_last_user_id', currentUser.id);
     
@@ -508,7 +506,6 @@ $('authForm').addEventListener('submit', async (e)=>{
 async function onUserLoggedIn(){
   $('userEmail').textContent = state.currentUser.email || '';
   
-  // 🔐 چک کن کاربر عوض شده
   const lastUserKey = 'jib_last_user_id';
   const lastUserId = localStorage.getItem(lastUserKey);
   const currentUserId = state.currentUser.id;
@@ -524,11 +521,9 @@ async function onUserLoggedIn(){
   localStorage.setItem(lastUserKey, currentUserId);
   
   try{
-    // اگه کاربر جدید بود یا داده محلی نداریم → از سرور بگیر
     const localHasData = state.data.accounts.length > 0 || state.data.transactions.length > 0;
     
     if(!localHasData){
-      // از سرور بگیر
       try{
         const cloud = await downloadFromCloud();
         if(cloud.accounts.length || cloud.transactions.length){
@@ -543,7 +538,6 @@ async function onUserLoggedIn(){
         }
       }catch(e){ console.warn('دانلود اولیه ناموفق:', e); }
     } else {
-      // داده محلی داریم → آپلود کن
       showToast('در حال آپلود داده‌ها به سرور...');
       await uploadToCloud(state.data);
       showToast('✅ داده‌ها به سرور منتقل شد');
@@ -581,15 +575,17 @@ $('setupAddCard').addEventListener('click',()=>{
   $('newCardName').value=''; $('newCardBalance').value=''; $('newCardWords').textContent='';
   $('cardOverlay').classList.add('open'); setTimeout(()=>$('newCardName').focus(),300);
 });
+
+/* 🔐 خروج از حساب در صفحه setup */
 async function logoutFromSetup(){
-  if(!confirm('از حساب خارج می‌شوی؟')) return;
+  if(!confirm('از حساب خارج می‌شوی؟\n\n⚠️ داده‌های محلی پاک می‌شن (ولی توی سرور می‌مونن)')) return;
   if(typeof clearAllUserData === 'function') clearAllUserData();
   else {
-    localStorage.removeItem('jib_man_v9');
+    localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem('jib_last_user_id');
   }
   state.data = JSON.parse(JSON.stringify(defaultData));
-  await signOut();
+  try{ await signOut(); }catch(e){}
   state.currentUser = null;
   $('setupScreen').classList.add('hidden');
   showAuthScreen();
@@ -599,6 +595,12 @@ async function logoutFromSetup(){
   showToast('✅ خارج شدی');
 }
 window.logoutFromSetup = logoutFromSetup;
+
+$('setupDone').addEventListener('click',()=>{
+  if(!state.setupCards.length){ showToast('حداقل یک کارت اضافه کن','error'); return; }
+  state.data.accounts = state.setupCards.map(c=>({id:c.id||uid(),name:c.name,color:c.color,initialBalance:Number(c.initialBalance)||0}));
+  state.data.settings.setupDone=true; saveData(); enterMainApp();
+});
 function enterMainApp(){
   $('setupScreen').classList.add('hidden'); $('mainApp').classList.remove('hidden');
   applyTheme(); $('headerDate').textContent = jalaliLong(); renderDashboard();
@@ -1522,14 +1524,12 @@ $('btnPullCloud').addEventListener('click', async ()=>{
 });
 $('btnLogout').addEventListener('click', async ()=>{
   if(!confirm('از حساب خارج می‌شوی؟\n\n⚠️ داده‌های محلی پاک می‌شن (ولی توی سرور می‌مونن)')) return;
-  // 🔐 پاک کردن همه داده‌های محلی
   if(typeof clearAllUserData === 'function') clearAllUserData();
   else {
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem('jib_last_user_id');
   }
   state.data = JSON.parse(JSON.stringify(defaultData));
-  // خروج
   await signOut();
   state.currentUser = null;
   showAuthScreen();
@@ -1551,7 +1551,6 @@ async function init(){
     const logged = await checkAuth();
     if(logged){
       state.currentUser = currentUser;
-      // 🔐 چک کن کاربر عوض شده یا نه
       const lastUserId = localStorage.getItem('jib_last_user_id');
       if(lastUserId && lastUserId !== currentUser.id){
         console.log('🔄 کاربر عوض شد!');
