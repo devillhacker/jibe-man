@@ -1,5 +1,9 @@
-/* ===== جیب من - app.js ===== */
+/* ============================================
+   جیب من — app.js (تکه ۱ از ۲)
+   ============================================ */
+
 const STORAGE_KEY = 'jib_man_v9';
+
 const defaultData = {
   accounts: [], transactions: [], installments: [], plans: {},
   categories: {
@@ -49,9 +53,12 @@ const state = {
   payDate:new Date(),
   setupCards:[],
   editingCardId:null,
-  planMonth:{y:0,m:0}
+  planMonth:{y:0,m:0},
+  currentUser: null,
+  syncInProgress: false
 };
 
+/* ===== Storage ===== */
 function loadData(){
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -59,24 +66,42 @@ function loadData(){
       const old = localStorage.getItem('jib_man_v8')||localStorage.getItem('jib_man_v7')||localStorage.getItem('jib_man_v6')||localStorage.getItem('jib_man_v5');
       if(old){
         const p = JSON.parse(old);
-        return Object.assign({},defaultData,p,
-          {settings:Object.assign({},defaultData.settings,p.settings||{})},
-          {categories:Object.assign({},defaultData.categories,p.categories||{})},
-          {accounts:p.accounts||[]},{transactions:p.transactions||[]},
-          {installments:p.installments||[]},{plans:p.plans||{}});
+        return mergeDefault(p);
       }
       return JSON.parse(JSON.stringify(defaultData));
     }
     const p = JSON.parse(raw);
-    return Object.assign({},defaultData,p,
-      {settings:Object.assign({},defaultData.settings,p.settings||{})},
-      {categories:Object.assign({},defaultData.categories,p.categories||{})},
-      {accounts:p.accounts||[]},{transactions:p.transactions||[]},
-      {installments:p.installments||[]},{plans:p.plans||{}});
+    return mergeDefault(p);
   }catch(e){ return JSON.parse(JSON.stringify(defaultData)); }
 }
-function saveData(){ try{ localStorage.setItem(STORAGE_KEY,JSON.stringify(state.data)); }catch(e){} }
+function mergeDefault(p){
+  return Object.assign({}, defaultData, p,
+    {settings:Object.assign({}, defaultData.settings, p.settings||{})},
+    {categories:Object.assign({}, defaultData.categories, p.categories||{})},
+    {accounts: p.accounts||[]},
+    {transactions: p.transactions||[]},
+    {installments: p.installments||[]},
+    {plans: p.plans||{}});
+}
+function saveData(){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data)); }
+  catch(e){ console.error(e); }
+  // سینک خودکار (اگه کاربر لاگین و آنلاین باشه)
+  if(state.currentUser && navigator.onLine){
+    scheduleAutoSync();
+  }
+}
+let autoSyncTimer = null;
+function scheduleAutoSync(){
+  if(autoSyncTimer) clearTimeout(autoSyncTimer);
+  autoSyncTimer = setTimeout(() => {
+    if(typeof uploadToCloud === 'function'){
+      uploadToCloud(state.data).catch(()=>{});
+    }
+  }, 3000);
+}
 
+/* ===== Utilities ===== */
 const toFa = s => String(s).replace(/\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[d]);
 const toEn = s => String(s).replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d));
 const $ = id => document.getElementById(id);
@@ -299,6 +324,118 @@ function switchTab(tab){
 document.querySelectorAll('.nav-item').forEach(el=>el.addEventListener('click',()=>switchTab(el.dataset.tab)));
 $('settingsBtn').addEventListener('click',()=>switchTab('settings'));
 
+/* ===== Auth UI ===== */
+let authMode = 'login'; // 'login' | 'signup'
+
+function showAuthScreen(){
+  $('authScreen').classList.remove('hidden');
+  $('setupScreen').classList.add('hidden');
+  $('mainApp').classList.add('hidden');
+}
+function hideAuthScreen(){
+  $('authScreen').classList.add('hidden');
+}
+function setAuthMode(mode){
+  authMode = mode;
+  const isLogin = mode === 'login';
+  $('tabLogin').classList.toggle('active', isLogin);
+  $('tabSignup').classList.toggle('active', !isLogin);
+  $('authSubmit').textContent = isLogin ? 'ورود' : 'ثبت‌نام';
+  $('authSubtitle').textContent = isLogin ? 'برای ادامه وارد شو' : 'حساب جدید بساز';
+  $('authFooterText').textContent = isLogin ? 'حساب نداری؟' : 'حساب داری؟';
+  $('authSwitch').textContent = isLogin ? 'ثبت‌نام کن' : 'وارد شو';
+  $('authPassword').autocomplete = isLogin ? 'current-password' : 'new-password';
+  hideAuthError();
+}
+function showAuthError(msg){
+  const el = $('authError');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+function hideAuthError(){
+  $('authError').classList.add('hidden');
+}
+$('tabLogin').addEventListener('click', ()=>setAuthMode('login'));
+$('tabSignup').addEventListener('click', ()=>setAuthMode('signup'));
+$('authSwitch').addEventListener('click', ()=>setAuthMode(authMode==='login'?'signup':'login'));
+
+$('authForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const email = $('authEmail').value.trim();
+  const password = $('authPassword').value;
+  hideAuthError();
+  if(!email || !password){
+    showAuthError('ایمیل و رمز عبور را وارد کن');
+    return;
+  }
+  if(password.length < 6){
+    showAuthError('رمز عبور باید حداقل ۶ کاراکتر باشد');
+    return;
+  }
+  const btn = $('authSubmit');
+  btn.disabled = true;
+  btn.textContent = authMode==='login' ? 'در حال ورود...' : 'در حال ثبت‌نام...';
+  try{
+    if(authMode === 'login'){
+      await signIn(email, password);
+    } else {
+      await signUp(email, password);
+      // اگه ثبت‌نام موفق بود، بلافاصله ورود
+      await signIn(email, password);
+    }
+    state.currentUser = currentUser;
+    hideAuthScreen();
+    setTimeout(onUserLoggedIn, 200);
+  }catch(e){
+    console.error(e);
+    let msg = 'خطا در ورود. دوباره تلاش کن.';
+    if(e.message && e.message.includes('Invalid login')) msg = 'ایمیل یا رمز عبور اشتباه است';
+    else if(e.message && e.message.includes('already registered')) msg = 'این ایمیل قبلاً ثبت شده';
+    else if(e.message && e.message.includes('Email not confirmed')) msg = 'ایمیل تأیید نشده';
+    else if(e.message) msg = e.message;
+    showAuthError(msg);
+    btn.disabled = false;
+    btn.textContent = authMode==='login' ? 'ورود' : 'ثبت‌نام';
+  }
+});
+
+async function onUserLoggedIn(){
+  $('userEmail').textContent = state.currentUser.email || '';
+  // آپلود داده‌های محلی به سرور (اگه داده محلی داریم)
+  try{
+    const localHasData = state.data.accounts.length > 0 || state.data.transactions.length > 0;
+    if(localHasData){
+      showToast('در حال آپلود داده‌ها به سرور...');
+      await uploadToCloud(state.data);
+      showToast('✅ داده‌ها به سرور منتقل شد');
+    } else {
+      // دانلود از سرور
+      try{
+        const cloud = await downloadFromCloud();
+        if(cloud.accounts.length || cloud.transactions.length){
+          state.data.accounts = cloud.accounts;
+          state.data.transactions = cloud.transactions;
+          state.data.installments = cloud.installments;
+          state.data.plans = cloud.plans;
+          if(cloud.categories) state.data.categories = cloud.categories;
+          if(cloud.settings) state.data.settings = Object.assign(state.data.settings, cloud.settings);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data));
+          showToast('✅ داده‌ها از سرور دریافت شد');
+        }
+      }catch(e){ console.warn('دانلود اولیه ناموفق:', e); }
+    }
+  }catch(e){ console.error('خطا در سینک اولیه:', e); }
+
+  // رندر
+  if(!state.data.settings.setupDone || !state.data.accounts.length){
+    $('setupScreen').classList.remove('hidden');
+    $('mainApp').classList.add('hidden');
+    renderSetup();
+  } else {
+    enterMainApp();
+  }
+}
+
 /* ===== Setup ===== */
 function renderSetup(){
   const list=$('setupCardList');
@@ -329,7 +466,15 @@ $('setupDone').addEventListener('click',()=>{
 function enterMainApp(){
   $('setupScreen').classList.add('hidden'); $('mainApp').classList.remove('hidden');
   applyTheme(); $('headerDate').textContent = jalaliLong(); renderDashboard();
+  if(state.currentUser){
+    $('userEmail').textContent = state.currentUser.email || '';
+    if(typeof updateSyncStatus === 'function') updateSyncStatus('online');
+  }
 }
+
+/* ============================================
+   جیب من — app.js (تکه ۲ از ۲)
+   ============================================ */
 
 /* ===== Card Modal ===== */
 const CARD_COLORS=['#dc2626','#2563eb','#059669','#7c3aed','#db2777','#ea580c','#0891b2','#65a30d'];
@@ -1072,6 +1217,7 @@ function renderSettings(){
   $('setCardsBadge').textContent = toFa(state.data.accounts.length);
   $('setCatsBadge').textContent = toFa((state.data.categories.expense.length + state.data.categories.income.length));
   $('reminderDays').value = state.data.settings.reminderDays||3;
+  if(state.currentUser){ $('userEmail').textContent = state.currentUser.email || ''; }
 }
 function renderCardsManage(){
   const el=$('cardsManageList');
@@ -1214,20 +1360,76 @@ $('btnWipe').addEventListener('click',()=>{
   state.data=JSON.parse(JSON.stringify(defaultData)); saveData(); location.reload();
 });
 
+/* ===== Cloud Sync Buttons ===== */
+$('btnSyncNow').addEventListener('click', async ()=>{
+  if(!state.currentUser){ showToast('اول وارد شو','error'); return; }
+  if(!navigator.onLine){ showToast('اینترنت وصل نیست','error'); return; }
+  showToast('در حال سینک...');
+  try{
+    await uploadToCloud(state.data);
+    showToast('✅ سینک انجام شد');
+  }catch(e){ showToast('خطا در سینک','error'); }
+});
+$('btnPullCloud').addEventListener('click', async ()=>{
+  if(!state.currentUser){ showToast('اول وارد شو','error'); return; }
+  if(!navigator.onLine){ showToast('اینترنت وصل نیست','error'); return; }
+  if(!confirm('داده‌های محلی با داده‌های سرور جایگزین می‌شوند. مطمئنی؟')) return;
+  showToast('در حال دریافت...');
+  try{
+    const cloud = await downloadFromCloud();
+    state.data.accounts = cloud.accounts;
+    state.data.transactions = cloud.transactions;
+    state.data.installments = cloud.installments;
+    state.data.plans = cloud.plans;
+    if(cloud.categories) state.data.categories = cloud.categories;
+    if(cloud.settings) state.data.settings = Object.assign(state.data.settings, cloud.settings);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data));
+    renderDashboard(); renderTransactions(); renderInstallments(); renderPlan(); renderSettings();
+    showToast('✅ داده‌ها از سرور دریافت شد');
+  }catch(e){ showToast('خطا در دریافت','error'); }
+});
+$('btnLogout').addEventListener('click', async ()=>{
+  if(!confirm('از حساب خارج می‌شوی؟')) return;
+  await signOut();
+  state.currentUser = null;
+  showAuthScreen();
+  setAuthMode('login');
+  $('authEmail').value = '';
+  $('authPassword').value = '';
+});
+
 /* ===== Init ===== */
-function init(){
+async function init(){
   applyTheme();
+
+  // Splash screen
   setTimeout(()=>{
     $('splash').classList.add('hide');
-    setTimeout(()=>$('splash').remove(), 600);
+    setTimeout(()=>{ const s = $('splash'); if(s) s.remove(); }, 600);
   }, 2000);
-  if(!state.data.settings.setupDone || !state.data.accounts.length){
-    $('setupScreen').classList.remove('hidden'); $('mainApp').classList.add('hidden'); renderSetup();
-  } else {
-    enterMainApp();
-    setInterval(checkNotifications, 30000);
-    setTimeout(checkNotifications, 3000);
+
+  // فعال‌سازی Supabase
+  try {
+    await initSupabase();
+    // چک کردن لاگین
+    const logged = await checkAuth();
+    if(logged){
+      state.currentUser = currentUser;
+      hideAuthScreen();
+      setTimeout(onUserLoggedIn, 100);
+    } else {
+      showAuthScreen();
+      setAuthMode('login');
+    }
+  } catch(e){
+    console.error('خطا در اتصال اولیه:', e);
+    showAuthScreen();
+    setAuthMode('login');
+    showAuthError('اتصال به سرور برقرار نیست. اینترنت را چک کن.');
   }
+
+  setInterval(checkNotifications, 30000);
+  setTimeout(checkNotifications, 3000);
   console.log('✅ جیب من آماده شد');
 }
 init();
