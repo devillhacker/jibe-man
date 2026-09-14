@@ -565,6 +565,7 @@ async function onUserLoggedIn(){
   const lastUserId = localStorage.getItem(lastUserKey);
   const userChanged = lastUserId && lastUserId !== realUserId;
   
+  // 🔐 اگه کاربر عوض شده، داده‌های محلی پاک شن
   if(userChanged){
     state.data = JSON.parse(JSON.stringify(defaultData));
     localStorage.removeItem(STORAGE_KEY);
@@ -572,31 +573,70 @@ async function onUserLoggedIn(){
   
   localStorage.setItem(lastUserKey, realUserId);
   
+  // 🔐 ذخیره داده‌های محلی فعلی
+  const localData = {
+    accounts: state.data.accounts || [],
+    transactions: state.data.transactions || [],
+    installments: state.data.installments || [],
+    plans: state.data.plans || {},
+    settings: state.data.settings || {}
+  };
+  const hasLocalData = localData.accounts.length > 0 || localData.transactions.length > 0 || localData.installments.length > 0;
+  
+  // 🔐 دریافت از سرور
+  let cloud = null;
   try{
-    const cloud = await downloadFromCloud();
-    state.data.accounts = cloud.accounts || [];
-    state.data.transactions = cloud.transactions || [];
-    state.data.installments = cloud.installments || [];
-    state.data.plans = cloud.plans || {};
+    cloud = await downloadFromCloud();
+  }catch(e){
+    console.error('خطا در دریافت:', e);
+  }
+  
+  const hasCloudData = cloud && (cloud.accounts.length > 0 || cloud.transactions.length > 0 || cloud.installments.length > 0);
+  
+  // 🔐 منطق تصمیم‌گیری:
+  if(hasCloudData){
+    // سرور داده داره → از سرور بگیر (معتبرترین منبع)
+    state.data.accounts = cloud.accounts;
+    state.data.transactions = cloud.transactions;
+    state.data.installments = cloud.installments;
+    state.data.plans = cloud.plans;
     if(cloud.categories) state.data.categories = cloud.categories;
     if(cloud.settings) state.data.settings = Object.assign(state.data.settings, cloud.settings);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data));
-    if(cloud.accounts.length || cloud.transactions.length){
-      showToast('✅ داده‌ها از سرور دریافت شد');
+    showToast('✅ داده‌ها از سرور دریافت شد');
+  } else if(hasLocalData){
+    // سرور خالیه ولی محلی داده داره → آپلود کن
+    console.log('📤 سرور خالیه، آپلود از محلی...');
+    try{
+      await uploadToCloud(localData);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(localData));
+      showToast('✅ داده‌های محلی به سرور منتقل شد');
+    }catch(e){
+      console.error('خطا در آپلود:', e);
     }
-  }catch(e){
-    console.error('❌ خطا در دریافت:', e);
+  } else {
+    // نه سرور، نه محلی → کاربر جدید واقعیه
+    console.log('👤 کاربر جدید، صفحه setup');
   }
 
-  if(!state.data.settings.setupDone || !state.data.accounts.length){
+  // 🔐 تصمیم نهایی: setup یا mainApp
+  const hasAnyData = state.data.accounts.length > 0 || 
+                     state.data.transactions.length > 0 || 
+                     state.data.installments.length > 0 ||
+                     state.data.settings.setupDone;
+  
+  if(!hasAnyData){
+    // کاربر جدید → setup
     const setup = $('setupScreen'); if(setup) setup.classList.remove('hidden');
     const main = $('mainApp'); if(main) main.classList.add('hidden');
     renderSetup();
   } else {
+    // کاربر قدیمی → داشبورد
+    if(!state.data.settings.setupDone) state.data.settings.setupDone = true;
+    saveData();
     enterMainApp();
   }
 }
-
 /* ===== Setup ===== */
 function renderSetup(){
   const list=$('setupCardList');
