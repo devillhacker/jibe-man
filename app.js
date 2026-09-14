@@ -581,11 +581,24 @@ $('setupAddCard').addEventListener('click',()=>{
   $('newCardName').value=''; $('newCardBalance').value=''; $('newCardWords').textContent='';
   $('cardOverlay').classList.add('open'); setTimeout(()=>$('newCardName').focus(),300);
 });
-$('setupDone').addEventListener('click',()=>{
-  if(!state.setupCards.length){ showToast('حداقل یک کارت اضافه کن','error'); return; }
-  state.data.accounts = state.setupCards.map(c=>({id:c.id||uid(),name:c.name,color:c.color,initialBalance:Number(c.initialBalance)||0}));
-  state.data.settings.setupDone=true; saveData(); enterMainApp();
-});
+async function logoutFromSetup(){
+  if(!confirm('از حساب خارج می‌شوی؟')) return;
+  if(typeof clearAllUserData === 'function') clearAllUserData();
+  else {
+    localStorage.removeItem('jib_man_v9');
+    localStorage.removeItem('jib_last_user_id');
+  }
+  state.data = JSON.parse(JSON.stringify(defaultData));
+  await signOut();
+  state.currentUser = null;
+  $('setupScreen').classList.add('hidden');
+  showAuthScreen();
+  setAuthMode('login');
+  $('authEmail').value = '';
+  $('authPassword').value = '';
+  showToast('✅ خارج شدی');
+}
+window.logoutFromSetup = logoutFromSetup;
 function enterMainApp(){
   $('setupScreen').classList.add('hidden'); $('mainApp').classList.remove('hidden');
   applyTheme(); $('headerDate').textContent = jalaliLong(); renderDashboard();
