@@ -303,7 +303,7 @@ function jalaliToGregorian(jy, jm, jd) {
   
   // ✅ اصلاح دقیق: به جای محاسبه، روز به روز چک کن
   // چک کن شمسی guess چی می‌ده
-  let maxIterations = 400; // حداکثر ۴۰۰ بار (برای سال‌های دور)
+  let maxIterations = 40; // حداکثر ۴۰۰ بار (برای سال‌های دور)
   let iterations = 0;
   
   while (iterations < maxIterations) {
