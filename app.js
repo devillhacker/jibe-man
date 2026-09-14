@@ -295,14 +295,36 @@ function compareJalali(y1,m1,d1, y2,m2,d2){
 
 function getInstStatus(inst){
   const now = new Date();
+function getInstStatus(inst){
+  const now = new Date();
   const today = toJalaliParts(now);
   const todayCmp = today.y*10000 + today.m*100 + today.d;
   const paidMonths = Object.keys(inst.paidMonths||{});
-  const createdKey = inst.createdMonth || jalaliMonthKey(now);
+  
+  // 🔐 اگه createdMonth نداره، از ماه جاری استفاده کن
+  let createdKey = inst.createdMonth;
+  if(!createdKey || !/^\d{4}-\d{2}$/.test(createdKey)){
+    // اگه نامعتبر بود، از ماه جاری استفاده کن
+    createdKey = jalaliMonthKey(now);
+    inst.createdMonth = createdKey; // ذخیره کن برای بار بعد
+  }
+  
   const [cy, cm] = createdKey.split('-').map(Number);
+  
+  // 🔐 اگه ماه ساخت بعد از امروزه، از امروز شروع کن
+  let startYear = cy;
+  let startMonth = cm;
+  if(startYear > today.y || (startYear === today.y && startMonth > today.m)){
+    startYear = today.y;
+    startMonth = today.m;
+  }
+  
   const months = [];
-  let {y, m} = {y: cy, m: cm};
-  while(compareJalali(y,m,1, today.y, today.m+1, 1) <= 0){
+  let {y, m} = {y: startYear, m: startMonth};
+  let safety = 0; // 🔐 جلوگیری از infinite loop
+  
+  while(compareJalali(y,m,1, today.y, today.m+1, 1) <= 0 && safety < 120){
+    safety++;
     const key = `${y}-${String(m).padStart(2,'0')}`;
     const dueDay = Math.min(inst.day, jalaliMonthLength(y,m));
     const dueCmp = y*10000 + m*100 + dueDay;
@@ -312,23 +334,34 @@ function getInstStatus(inst){
     const next = addJalaliMonths(y,m,1);
     y = next.y; m = next.m;
   }
+  
   const unpaid = months.filter(mo => !paidMonths.includes(mo.key));
   if(!unpaid.length){
     return {status:'paid', unpaidMonths:[], totalAmount:0, count:0};
   }
+  
   const firstUnpaid = unpaid[0];
   const firstDueDate = jalaliToGregorian(firstUnpaid.y, firstUnpaid.m, firstUnpaid.dueDay);
   const daysDiff = Math.floor((new Date(firstDueDate).setHours(0,0,0,0) - new Date().setHours(0,0,0,0)) / 86400000);
+  
+  // 🔐 اگه daysDiff عجیب بود (بیشتر از 365)، یه جای کار می‌لنگه
+  let safeDaysDiff = daysDiff;
+  if(Math.abs(daysDiff) > 365) {
+    console.warn('⚠️ محاسبه‌ی روز اشتباه:', daysDiff, 'قسط:', inst.name);
+    safeDaysDiff = 0;
+  }
+  
   let status = 'danger';
-  if(daysDiff >= 0 && daysDiff <= (state.data.settings.reminderDays||3)) status = 'warn';
-  else if(daysDiff > (state.data.settings.reminderDays||3)) status = 'ok';
+  if(safeDaysDiff >= 0 && safeDaysDiff <= (state.data.settings.reminderDays||3)) status = 'warn';
+  else if(safeDaysDiff > (state.data.settings.reminderDays||3)) status = 'ok';
+  
   return {
     status,
     unpaidMonths: unpaid,
     totalAmount: inst.amount * unpaid.length,
     firstDue: firstDueDate,
     firstUnpaid,
-    daysDiff,
+    daysDiff: safeDaysDiff,
     count: unpaid.length
   };
 }
