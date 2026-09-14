@@ -1,5 +1,5 @@
 /* ============================================
-   جیب من — Supabase Connection
+   جیب من — Supabase Connection (v2)
    ============================================ */
 
 const SUPABASE_URL = 'https://lwqaltkojnnxilurzngr.supabase.co';
@@ -91,22 +91,30 @@ async function checkAuth() {
   return false;
 }
 
-/* ===== 🔐 چک کن کاربر عوض شده یا نه ===== */
+/* 🔐 گرفتن کاربر فعلی از session (همیشه امن) */
+async function getCurrentUserId() {
+  if (!sbClient) return null;
+  const { data: { session } } = await sbClient.auth.getSession();
+  if (!session) return null;
+  return session.user.id;
+}
+
+/* 🔐 چک کن کاربر عوض شده */
 function checkUserChanged(userId) {
   const lastUserId = localStorage.getItem(LAST_USER_KEY);
   if (lastUserId && lastUserId !== userId) {
-    console.log('🔄 کاربر عوض شده! پاک کردن داده‌های محلی...');
+    console.log('🔄 کاربر عوض شده!');
     return true;
   }
   return false;
 }
 
-/* ===== 🔐 ذخیره کاربر فعلی ===== */
+/* 🔐 ذخیره کاربر فعلی */
 function saveCurrentUser(userId) {
   localStorage.setItem(LAST_USER_KEY, userId);
 }
 
-/* ===== 🔐 پاک کردن داده‌های کاربر قبلی ===== */
+/* 🔐 پاک کردن داده‌های محلی */
 function clearLocalData() {
   try {
     localStorage.removeItem('jib_man_v9');
@@ -118,7 +126,7 @@ function clearLocalData() {
   } catch(e){ console.error(e); }
 }
 
-/* ===== 🔐 پاک کردن کامل کاربر (Logout) ===== */
+/* 🔐 پاک کردن کامل کاربر (Logout) */
 function clearAllUserData() {
   try {
     localStorage.removeItem('jib_man_v9');
@@ -133,13 +141,19 @@ function clearAllUserData() {
 
 /* ===== آپلود به Supabase ===== */
 async function uploadToCloud(data) {
-  if (!currentUser) throw new Error('کاربر لاگین نکرده');
+  if (!sbClient) throw new Error('اتصال به سرور برقرار نیست');
+  
+  // 🔐 همیشه از session کاربر فعلی بگیر
+  const { data: { session } } = await sbClient.auth.getSession();
+  if (!session) throw new Error('کاربر لاگین نکرده');
+  
+  const userId = session.user.id;
+  console.log('📤 آپلود به کاربر:', session.user.email, userId);
+  
   updateSyncStatus('syncing');
   
   try {
-    const userId = currentUser.id;
-    
-    // ۱. پاک کردن داده‌های قدیمی
+    // ۱. پاک کردن داده‌های قدیمی این کاربر
     await sbClient.from('transactions').delete().eq('user_id', userId);
     await sbClient.from('accounts').delete().eq('user_id', userId);
     await sbClient.from('installments').delete().eq('user_id', userId);
@@ -222,11 +236,18 @@ async function uploadToCloud(data) {
 
 /* ===== دانلود از Supabase ===== */
 async function downloadFromCloud() {
-  if (!currentUser) throw new Error('کاربر لاگین نکرده');
+  if (!sbClient) throw new Error('اتصال به سرور برقرار نیست');
+  
+  // 🔐 همیشه از session کاربر فعلی بگیر
+  const { data: { session } } = await sbClient.auth.getSession();
+  if (!session) throw new Error('کاربر لاگین نکرده');
+  
+  const userId = session.user.id;
+  console.log('📥 دانلود از کاربر:', session.user.email, userId);
+  
   updateSyncStatus('syncing');
   
   try {
-    const userId = currentUser.id;
     const result = {
       accounts: [],
       transactions: [],
@@ -329,7 +350,6 @@ function updateSyncStatus(status) {
 /* ===== رصد آنلاین/آفلاین ===== */
 window.addEventListener('online', () => {
   updateSyncStatus('online');
-  if (typeof autoSync === 'function') autoSync();
 });
 window.addEventListener('offline', () => {
   updateSyncStatus('offline');
