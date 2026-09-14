@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>جیب من — مدیریت مالی، ساده و سریع</title>
+<link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet">
+<style>
+:root{
+  --red:#ef4444;
+  --red-dark:#dc2626;
+  --gold:#fbbf24;
+  --gold-dark:#f59e0b;
+  --dark:#0f172a;
+  --gray:#64748b;
+}
+*{font-family:'Vazirmatn',system-ui,sans-serif;margin:0;padding:0;box-sizing:border-box}
+body{
+  background:#0f172a;
+  color:#f1f5f9;
+  line-height:1.7;
+  overflow-x:hidden;
+}
+html{scroll-behavior:smooth}
+.container{max-width:1100px;margin:0 auto;padding:0 20px}
+
+/* ===== Header / Nav ===== */
+.nav{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  background:rgba(15,23,42,.85);
+  backdrop-filter:blur(20px);
+  border-bottom:1px solid rgba(255,255,255,.05);
+  padding:12px 0;
+}
+.nav-inner{
+  display:flex;align-items:center;justify-content:space-between;
+  max-width:1100px;margin:0 auto;padding:0 20px;
+}
+.nav-logo{
+  display:flex;align-items:center;gap:10px;
+  color:white;font-weight:900;font-size:17px;
+}
+.nav-logo-box{
+  width:36px;height:36px;border-radius:11px;
+  background:linear-gradient(135deg,var(--red),var(--red-dark));
+  display:flex;align-items:center;justify-content:center;
+  color:white;font-weight:900;font-size:18px;
+  box-shadow:0 4px 14px rgba(239,68,68,.4);
+}
+.nav-links{display:flex;gap:24px;font-size:14px}
+.nav-links a{color:#cbd5e1;text-decoration:none;transition:color .2s}
+.nav-links a:hover{color:var(--gold)}
+@media (max-width:768px){.nav-links{display:none}}
+
+/* ===== Hero ===== */
+.hero{
+  padding:140px 0 80px;
+  position:relative;
+  overflow:hidden;
+}
+.hero::before{
+  content:'';position:absolute;
+  top:-200px;right:-200px;width:600px;height:600px;
+  background:radial-gradient(circle,rgba(239,68,68,.25),transparent 70%);
+  z-index:0;
+}
+.hero::after{
+  content:'';position:absolute;
+  bottom:-300px;left:-200px;width:600px;height:600px;
+  background:radial-gradient(circle,rgba(251,191,36,.15),transparent 70%);
+  z-index:0;
+}
+.hero-inner{
+  position:relative;z-index:1;
+  display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:center;
+}
+@media (max-width:900px){
+  .hero-inner{grid-template-columns:1fr;gap:40px;text-align:center}
+  .hero{padding:120px 0 60px}
+}
+.hero-badge{
+  display:inline-flex;align-items:center;gap:8px;
+  background:rgba(251,191,36,.15);
+  border:1px solid rgba(251,191,36,.3);
+  padding:8px 16px;border-radius:100px;
+  color:var(--gold);font-size:13px;font-weight:700;
+  margin-bottom:24px;
+}
+.hero-badge span{
+  width:6px;height:6px;border-radius:50%;
+  background:var(--gold);animation:blink 1.5s infinite;
+}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.hero h1{
+  font-size:52px;font-weight:900;line-height:1.2;
+  margin-bottom:20px;letter-spacing:-1px;
+}
+@media (max-width:768px){.hero h1{font-size:38px}}
+.hero h1 .highlight{
+  background:linear-gradient(135deg,var(--red),var(--gold));
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  background-clip:text;
+}
+.hero p{
+  font-size:18px;color:#94a3b8;margin-bottom:36px;line-height:1.9;
+}
+.hero-ctas{display:flex;gap:14px;flex-wrap:wrap}
+@media (max-width:900px){.hero-ctas{justify-content:center}}
+.btn{
+  display:inline-flex;align-items:center;gap:10px;
+  padding:16px 28px;border-radius:16px;
+  font-size:15px;font-weight:800;text-decoration:none;
+  border:none;cursor:pointer;transition:all .2s;
+  font-family:inherit;
+}
+.btn-primary{
+  background:linear-gradient(135deg,var(--red),var(--red-dark));
+  color:white;box-shadow:0 8px 24px rgba(239,68,68,.4);
+}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 12px 32px rgba(239,68,68,.5)}
+.btn-secondary{
+  background:rgba(251,191,36,.12);
+  border:2px solid rgba(251,191,36,.3);
+  color:var(--gold);
+}
+.btn-secondary:hover{background:rgba(251,191,36,.2)}
+
+/* ===== Phone Mockup ===== */
+.phone-wrap{
+  display:flex;justify-content:center;align-items:center;
+  position:relative;
+}
+.phone{
+  width:280px;height:560px;
+  background:linear-gradient(135deg,#1e293b,#0f172a);
+  border-radius:44px;
+  border:8px solid #1e293b;
+  box-shadow:
+    0 30px 60px rgba(0,0,0,.5),
+    0 0 0 2px rgba(255,255,255,.05),
+    inset 0 0 20px rgba(0,0,0,.3);
+  position:relative;
+  overflow:hidden;
+  animation:float 6s ease-in-out infinite;
+}
+@keyframes float{
+  0%,100%{transform:translateY(0) rotate(-2deg)}
+  50%{transform:translateY(-15px) rotate(-2deg)}
+}
+.phone::before{
+  content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);
+  width:120px;height:22px;
+  background:#0f172a;border-radius:0 0 16px 16px;z-index:10;
+}
+.phone-screen{
+  width:100%;height:100%;padding:44px 16px 16px;
+  background:#f8fafc;
+  color:#0f172a;
+  overflow:hidden;
+  position:relative;
+}
+.ps-header{
+  display:flex;align-items:center;gap:10px;margin-bottom:16px;
+}
+.ps-logo{
+  width:32px;height:32px;border-radius:10px;
+  background:linear-gradient(135deg,var(--red),var(--red-dark));
+  display:flex;align-items:center;justify-content:center;
+  color:white;font-weight:900;font-size:15px;
+}
+.ps-title{font-size:13px;font-weight:800;color:#1e293b}
+.ps-sub{font-size:9px;color:#94a3b8}
+.ps-card{
+  background:linear-gradient(135deg,#6366f1,#8b5cf6);
+  border-radius:14px;padding:14px;color:white;margin-bottom:12px;
+}
+.ps-card-title{font-size:9px;opacity:.8;margin-bottom:4px}
+.ps-card-value{font-size:18px;font-weight:900}
+.ps-amounts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.ps-amt{
+  background:white;border-radius:10px;padding:10px;border:1px solid #f1f5f9;
+}
+.ps-amt-lbl{font-size:8px;color:#94a3b8;margin-bottom:2px}
+.ps-amt-val{font-size:11px;font-weight:800}
+.ps-amt-val.green{color:#10b981}
+.ps-amt-val.red{color:#ef4444}
+.ps-tx{background:white;border-radius:10px;padding:10px;border:1px solid #f1f5f9;margin-bottom:6px}
+.ps-tx-row{display:flex;align-items:center;gap:8px}
+.ps-tx-emoji{
+  width:28px;height:28px;border-radius:8px;
+  background:#fef3c7;
+  display:flex;align-items:center;justify-content:center;font-size:14px;
+}
+.ps-tx-info{flex:1}
+.ps-tx-name{font-size:10px;font-weight:700;color:#334155}
+.ps-tx-time{font-size:8px;color:#94a3b8}
+.ps-tx-amount{font-size:10px;font-weight:800;color:#ef4444}
+.ps-fab{
+  position:absolute;bottom:20px;left:50%;transform:translateX(-50%);
+  width:48px;height:48px;border-radius:50%;
+  background:linear-gradient(135deg,var(--red),var(--red-dark));
+  display:flex;align-items:center;justify-content:center;
+  color:white;font-size:24px;font-weight:300;
+  box-shadow:0 8px 20px rgba(239,68,68,.4);
+}
+
+/* ===== Section ===== */
+.section{padding:80px 0;position:relative}
+.section-title{
+  text-align:center;margin-bottom:60px;
+}
+.section-title h2{
+  font-size:42px;font-weight:900;margin-bottom:16px;
+  letter-spacing:-1px;
+}
+@media (max-width:768px){.section-title h2{font-size:30px}}
+.section-title h2 .highlight{
+  background:linear-gradient(135deg,var(--red),var(--gold));
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  background-clip:text;
+}
+.section-title p{color:#94a3b8;font-size:17px;max-width:600px;margin:0 auto}
+.section-title .bar{
+  width:60px;height:5px;border-radius:3px;
+  background:linear-gradient(90deg,var(--red),var(--gold));
+  margin:0 auto 24px;
+}
+
+/* ===== Features ===== */
+.features-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:20px;
+}
+@media (max-width:900px){.features-grid{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:600px){.features-grid{grid-template-columns:1fr}}
+.feature{
+  background:linear-gradient(135deg,rgba(30,41,59,.6),rgba(15,23,42,.6));
+  border:1px solid rgba(255,255,255,.06);
+  border-radius:20px;padding:26px;
+  transition:all .3s;
+  position:relative;overflow:hidden;
+}
+.feature::before{
+  content:'';position:absolute;top:0;right:0;width:100px;height:100px;
+  background:radial-gradient(circle,rgba(239,68,68,.15),transparent 70%);
+  opacity:0;transition:opacity .3s;
+}
+.feature:hover{
+  transform:translateY(-6px);
+  border-color:rgba(251,191,36,.3);
+  box-shadow:0 20px 40px rgba(0,0,0,.3);
+}
+.feature:hover::before{opacity:1}
+.feature-icon{
+  width:56px;height:56px;border-radius:16px;
+  display:flex;align-items:center;justify-content:center;
+  margin-bottom:18px;position:relative;z-index:1;
+}
+.feature-icon svg{width:28px;height:28px}
+.feature h3{
+  font-size:17px;font-weight:800;margin-bottom:8px;
+  color:#f1f5f9;position:relative;z-index:1;
+}
+.feature p{
+  font-size:13.5px;color:#94a3b8;line-height:1.8;
+  position:relative;z-index:1;
+}
+
+/* ===== Steps ===== */
+.steps{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:30px;
+  position:relative;
+}
+@media (max-width:900px){.steps{grid-template-columns:1fr;gap:50px}}
+.step{
+  text-align:center;position:relative;
+}
+.step-num{
+  width:80px;height:80px;border-radius:50%;
+  background:linear-gradient(135deg,var(--red),var(--gold));
+  display:flex;align-items:center;justify-content:center;
+  font-size:36px;font-weight:900;color:white;
+  margin:0 auto 24px;
+  box-shadow:0 12px 30px rgba(239,68,68,.35);
+  position:relative;z-index:2;
+}
+.step h3{font-size:20px;font-weight:800;margin-bottom:12px;color:#f1f5f9}
+.step p{color:#94a3b8;font-size:14px;max-width:280px;margin:0 auto}
+@media (min-width:901px){
+  .steps::before{
+    content:'';position:absolute;
+    top:40px;right:15%;left:15%;height:3px;
+    background:repeating-linear-gradient(90deg,rgba(251,191,36,.4) 0 8px,transparent 8px 16px);
+    z-index:1;
+  }
+}
+
+/* ===== Comparison ===== */
+.comparison{
+  display:grid;grid-template-columns:1fr 1fr;gap:24px;
+  max-width:800px;margin:0 auto;
+}
+@media (max-width:700px){.comparison{grid-template-columns:1fr}}
+.comp-card{
+  border-radius:24px;padding:32px 28px;
+  border:2px solid;
+}
+.comp-card.bad{
+  background:rgba(100,116,139,.08);
+  border-color:rgba(100,116,139,.2);
+}
+.comp-card.good{
+  background:linear-gradient(135deg,rgba(239,68,68,.1),rgba(251,191,36,.05));
+  border-color:rgba(251,191,36,.3);
+  position:relative;
+}
+.comp-card.good::before{
+  content:'⭐ پیشنهاد ما';
+  position:absolute;top:-12px;right:24px;
+  background:linear-gradient(135deg,var(--red),var(--gold));
+  color:white;font-size:11px;font-weight:800;
+  padding:5px 14px;border-radius:100px;
+}
+.comp-card h3{
+  font-size:20px;font-weight:900;margin-bottom:20px;
+  display:flex;align-items:center;gap:10px;
+}
+.comp-card ul{list-style:none}
+.comp-card li{
+  padding:10px 0;
+  display:flex;align-items:flex-start;gap:10px;
+  font-size:14px;color:#cbd5e1;
+  border-bottom:1px solid rgba(255,255,255,.05);
+}
+.comp-card li:last-child{border-bottom:none}
+.comp-card li .icon{flex-shrink:0;font-size:18px}
+.comp-card.bad li .icon{color:#94a3b8}
+.comp-card.good li .icon{color:#10b981}
+
+/* ===== Stats ===== */
+.stats{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:20px;
+  max-width:900px;margin:0 auto;
+}
+@media (max-width:700px){.stats{grid-template-columns:repeat(2,1fr)}}
+.stat{
+  text-align:center;padding:24px 16px;
+  background:linear-gradient(135deg,rgba(30,41,59,.6),rgba(15,23,42,.6));
+  border:1px solid rgba(255,255,255,.06);
+  border-radius:18px;
+}
+.stat-num{
+  font-size:36px;font-weight:900;
+  background:linear-gradient(135deg,var(--red),var(--gold));
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  background-clip:text;
+  margin-bottom:6px;
+}
+.stat-lbl{font-size:13px;color:#94a3b8}
+
+/* ===== CTA Final ===== */
+.cta-final{
+  text-align:center;padding:80px 20px;
+  background:linear-gradient(135deg,rgba(239,68,68,.1),rgba(251,191,36,.05));
+  border-radius:32px;margin:60px 0;
+  border:1px solid rgba(251,191,36,.2);
+  position:relative;overflow:hidden;
+}
+.cta-final::before{
+  content:'';position:absolute;
+  top:-100px;right:-100px;width:400px;height:400px;
+  background:radial-gradient(circle,rgba(239,68,68,.2),transparent 70%);
+}
+.cta-final h2{
+  font-size:38px;font-weight:900;margin-bottom:16px;
+  position:relative;z-index:1;
+}
+@media (max-width:768px){.cta-final h2{font-size:26px}}
+.cta-final p{color:#94a3b8;font-size:17px;margin-bottom:36px;position:relative;z-index:1}
+
+/* ===== QR ===== */
+.qr-box{
+  display:inline-block;padding:20px;
+  background:white;border-radius:20px;
+  margin-top:24px;position:relative;z-index:1;
+}
+.qr-box svg{display:block;width:160px;height:160px}
+.qr-label{
+  text-align:center;color:#0f172a;
+  font-size:12px;font-weight:700;margin-top:8px;
+}
+
+/* ===== Footer ===== */
+.footer{
+  padding:40px 20px;text-align:center;
+  border-top:1px solid rgba(255,255,255,.05);
+  color:#64748b;font-size:13px;
+}
+.footer a{color:var(--gold);text-decoration:none}
+.footer .credit{
+  margin-top:12px;font-size:12px;
+}
+
+/* ===== Animations ===== */
+.fade-in{
+  opacity:0;transform:translateY(30px);
+  transition:all .7s cubic-bezier(.16,1,.3,1);
+}
+.fade-in.visible{
+  opacity:1;transform:translateY(0);
+}
+</style>
+</head>
+<body>
+
+<!-- ============ NAV ============ -->
+<nav class="nav">
+  <div class="nav-inner">
+    <div class="nav-logo">
+      <div class="nav-logo-box">ج</div>
+      <span>جیب من</span>
+    </div>
+    <div class="nav-links">
+      <a href="#features">قابلیت‌ها</a>
+      <a href="#how">چطور کار می‌کنه</a>
+      <a href="#compare">مقایسه</a>
+      <a href="#download">دانلود</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ============ HERO ============ -->
+<section class="hero">
+  <div class="container hero-inner">
+    <div>
+      <div class="hero-badge">
+        <span></span>
+        نسخه ۱.۰.۱ — جدیدترین
+      </div>
+      <h1>
+        پولت رو <span class="highlight">کنترل</span> کن! 🚀
+      </h1>
+      <p>
+        جیب من — مدیریت مالی، ساده و سریع.<br>
+        ثبت هزینه در چند ثانیه، اقساط با یادآوری، گزارش‌های هوشمند و سینک ابری.
+      </p>
+      <div class="hero-ctas">
+        <a href="https://devillhacker.github.io/jibe-man/" class="btn btn-primary">
+          📲 دانلود رایگان
+        </a>
+        <a href="#features" class="btn btn-secondary">
+          ✨ قابلیت‌ها
+        </a>
+      </div>
+    </div>
+    <div class="phone-wrap">
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="ps-header">
+            <div class="ps-logo">ج</div>
+            <div>
+              <div class="ps-title">جیب من</div>
+              <div class="ps-sub">۲۵ شهریور ۱۴۰۴</div>
+            </div>
+          </div>
+          <div class="ps-card">
+            <div class="ps-card-title">💰 مجموع موجودی</div>
+            <div class="ps-card-value">۴,۸۰۰,۰۰۰ تومان</div>
+          </div>
+          <div class="ps-amounts">
+            <div class="ps-amt">
+              <div class="ps-amt-lbl">📉 هزینه این ماه</div>
+              <div class="ps-amt-val red">۱,۲۰۰,۰۰۰</div>
+            </div>
+            <div class="ps-amt">
+              <div class="ps-amt-lbl">📈 درآمد</div>
+              <div class="ps-amt-val green">۵,۰۰۰,۰۰۰</div>
+            </div>
+          </div>
+          <div class="ps-tx">
+            <div class="ps-tx-row">
+              <div class="ps-tx-emoji">☕</div>
+              <div class="ps-tx-info">
+                <div class="ps-tx-name">قهوه صبح</div>
+                <div class="ps-tx-time">امروز • ۰۹:۳۰</div>
+              </div>
+              <div class="ps-tx-amount">−۱۵۰,۰۰۰</div>
+            </div>
+          </div>
+          <div class="ps-tx">
+            <div class="ps-tx-row">
+              <div class="ps-tx-emoji" style="background:#fef2f2">🚕</div>
+              <div class="ps-tx-info">
+                <div class="ps-tx-name">تاکسی</div>
+                <div class="ps-tx-time">دیروز • ۱۸:۰۰</div>
+              </div>
+              <div class="ps-tx-amount">−۸۰,۰۰۰</div>
+            </div>
+          </div>
+          <div class="ps-tx">
+            <div class="ps-tx-row">
+              <div class="ps-tx-emoji" style="background:#f0fdf4">💼</div>
+              <div class="ps-tx-info">
+                <div class="ps-tx-name">حقوق مهر</div>
+                <div class="ps-tx-time">۲ روز پیش</div>
+              </div>
+              <div class="ps-tx-amount" style="color:#10b981">+۵۰,۰۰۰,۰۰۰</div>
+            </div>
+          </div>
+          <div class="ps-fab">+</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FEATURES ============ -->
+<section class="section" id="features">
+  <div class="container">
+    <div class="section-title fade-in">
+      <div class="bar"></div>
+      <h2>چی <span class="highlight">داره</span>؟</h2>
+      <p>هر چیزی که برای مدیریت مالی نیاز داری</p>
+    </div>
+    <div class="features-grid">
+      
+      <div class="feature fade-in">
+        <div class="feature-icon" style="background:linear-gradient(135deg,#ef4444,#dc2626)">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        </div>
+        <h3>ثبت فوق‌سریع</h3>
+        <p>در چند ثانیه هزینه‌ات رو ثبت کن. سریع‌تر از فراموش کردن!</p>
+      </div>
+
+      <div class="feature fade-in">
+        <div class="feature-icon" style="background:linear-gradient(135deg,#10b981,#059669)">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M2 10h20"/></svg>
+        </div>
+        <h3>مدیریت کارت‌ها</h3>
+        <p>موجودی هر کارت جداگانه، جلوگیری از خرج بیش از حد.</p>
+      </div>
+
+      <div class="feature fade-in">
+        <div class="feature-icon" style="background:linear-gradient(135deg,#6366f1,#8b5cf6)">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+        </div>
+        <h3>اقساط هوشمند</h3>
+        <p>یادآوری خودکار، نمایش ×N برای عقب‌افتاده، پرداخت با هر کارتی.</p>
+      </div>
+
+      <div class="feature fade-in">
+        <div class="feature-icon" style="background:linear-gradient(135deg,#f59e0b,#d97706)">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-5"/></svg>
+        </div>
+        <h3>گزارش‌های تحلیلی</h3>
+        <p>نمودار، تحلیل هوشمند، مقایسه ماه‌ها و بیشترین هزینه‌ها.</p>
+      </div>
+
+      <div class="feature fade-in">
+        <div class="feature-icon" style="background:linear-gradient(135deg,#06b6d4,#0891b2)">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.5 0 4.8 1 6.4 2.6L21 8"/><path d="M21 3v5h-5"/></svg>
+        </div>
+        <h3>سینک ابری</h3>
+        <p>داده‌هات بین گوشی و کامپیوتر همگام می‌شه. همیشه در دسترس.</p>
+      </div>
+
+      <div class="feature fade-in">
+        <div class="feature-icon" style="background:linear-gradient(135deg,#ec4899,#db2777)">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        </div>
+        <h3>برنامه‌ریزی ماهانه</h3>
+        <p>برای هر ماه جداگانه برنامه بریز و با واقعیت مقایسه کن.</p>
+      </div>
+
+      <div class="feature fade-in">
+        <div class="feature-icon" style="background:linear-gradient(135deg,#a855f7,#9333ea)">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        </div>
+        <h3>تاریخ شمسی</h3>
+        <p>تقویم شمسی، ساعت دقیق، و ثبت دستی برای روزهای گذشته.</p>
+      </div>
+
+      <div class="feature fade-in">
+        <div class="feature-icon" style="background:linear-gradient(135deg,#0ea5e9,#0284c7)">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/></svg>
+        </div>
+        <h3>PWA</h3>
+        <p>روی صفحه اصلی گوشی نصب کن. مثل یه اپ واقعی کار می‌کنه.</p>
+      </div>
+
+      <div class="feature fade-in">
+        <div class="feature-icon" style="background:linear-gradient(135deg,#f97316,#ea580c)">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+        </div>
+        <h3>Backup و Export</h3>
+        <p>از داده‌هات پشتیبان بگیر. خروجی JSON و CSV.</p>
+      </div>
+
+      <div class="feature fade-in">
+        <div class="feature-icon" style="background:linear-gradient(135deg,#dc2626,#b91c1c)">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10"/><circle cx="12" cy="12" r="3"/></svg>
+        </div>
+        <h3>حالت تاریک</h3>
+        <p>شب‌ها چشمت اذیت نشه. تم روشن و تاریک.</p>
+      </div>
+
+      <div class="feature fade-in">
+        <div class="feature-icon" style="background:linear-gradient(135deg,#14b8a6,#0d9488)">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </div>
+        <h3>امنیت کامل</h3>
+        <p>هر کاربر داده‌های خودش. رمزنگاری پسوردها.</p>
+      </div>
+
+      <div class="feature fade-in">
+        <div class="feature-icon" style="background:linear-gradient(135deg,#8b5cf6,#7c3aed)">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        </div>
+        <h3>رایگان</h3>
+        <p>بدون هزینه، بدون تبلیغ، بدون محدودیت.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ============ HOW IT WORKS ============ -->
+<section class="section" id="how" style="background:rgba(15,23,42,.5)">
+  <div class="container">
+    <div class="section-title fade-in">
+      <div class="bar"></div>
+      <h2>چطور <span class="highlight">شروع</span> کنم؟</h2>
+      <p>در ۳ مرحله ساده شروع کن</p>
+    </div>
+    <div class="steps">
+      <div class="step fade-in">
+        <div class="step-num">۱</div>
+        <h3>ثبت‌نام کن</h3>
+        <p>با ایمیل خودت ثبت‌نام کن. ۳۰ ثانیه بیشتر طول نمی‌کشه.</p>
+      </div>
+      <div class="step fade-in">
+        <div class="step-num">۲</div>
+        <h3>کارت اضافه کن</h3>
+        <p>کارت‌هات و موجودی هر کدوم رو وارد کن. مثلاً ملت با ۳ میلیون.</p>
+      </div>
+      <div class="step fade-in">
+        <div class="step-num">۳</div>
+        <h3>شروع کن!</h3>
+        <p>هر هزینه‌ای که می‌کنی، توی چند ثانیه ثبت کن. تمام!</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ COMPARISON ============ -->
+<section class="section" id="compare">
+  <div class="container">
+    <div class="section-title fade-in">
+      <div class="bar"></div>
+      <h2>چرا <span class="highlight">جیب من</span>؟</h2>
+      <p>مقایسه با روش‌های قدیمی</p>
+    </div>
+    <div class="comparison">
+      <div class="comp-card bad fade-in">
+        <h3>😕 روش‌های قدیمی</h3>
+        <ul>
+          <li><span class="icon">❌</span> یادت می‌ره هزینه ثبت کنی</li>
+          <li><span class="icon">❌</span> دفتر و کاغذ گم می‌شه</li>
+          <li><span class="icon">❌</span> نمی‌دونی پولت کجا رفته</li>
+          <li><span class="icon">❌</span> اقساط یادت می‌ره</li>
+          <li><span class="icon">❌</span> گزارش نداری</li>
+          <li><span class="icon">❌</span> اکسل سخته</li>
+        </ul>
+      </div>
+      <div class="comp-card good fade-in">
+        <h3>🎯 جیب من</h3>
+        <ul>
+          <li><span class="icon">✅</span> ثبت در چند ثانیه</li>
+          <li><span class="icon">✅</span> همه چیز توی گوشی</li>
+          <li><span class="icon">✅</span> دقیقاً می‌دونی پولت کجاست</li>
+          <li><span class="icon">✅</span> یادآوری خودکار اقساط</li>
+          <li><span class="icon">✅</span> گزارش‌های تحلیلی</li>
+          <li><span class="icon">✅</span> فارسی و RTL</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ STATS ============ -->
+<section class="section">
+  <div class="container">
+    <div class="stats">
+      <div class="stat fade-in">
+        <div class="stat-num">۱۲+</div>
+        <div class="stat-lbl">قابلیت</div>
+      </div>
+      <div class="stat fade-in">
+        <div class="stat-num">۱۰۰٪</div>
+        <div class="stat-lbl">رایگان</div>
+      </div>
+      <div class="stat fade-in">
+        <div class="stat-num">∞</div>
+        <div class="stat-lbl">تراکنش</div>
+      </div>
+      <div class="stat fade-in">
+        <div class="stat-num">♾️</div>
+        <div class="stat-lbl">دستگاه</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FINAL CTA ============ -->
+<section class="section">
+  <div class="container">
+    <div class="cta-final fade-in">
+      <h2>آماده‌ای شروع کنی؟ 🚀</h2>
+      <p>همین حالا نصب کن و پولت رو کنترل کن!</p>
+      <a href="https://devillhacker.github.io/jibe-man/" class="btn btn-primary" style="font-size:17px;padding:20px 40px">
+        📲 دانلود رایگان
+      </a>
+      <div class="qr-box">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+          <rect width="200" height="200" fill="white"/>
+          <!-- QR Code Pattern (نمونه ساده) -->
+          <g fill="#0f172a">
+            <rect x="10" y="10" width="50" height="50"/>
+            <rect x="20" y="20" width="30" height="30" fill="white"/>
+            <rect x="25" y="25" width="20" height="20" fill="#0f172a"/>
+            
+            <rect x="140" y="10" width="50" height="50"/>
+            <rect x="150" y="20" width="30" height="30" fill="white"/>
+            <rect x="155" y="25" width="20" height="20" fill="#0f172a"/>
+            
+            <rect x="10" y="140" width="50" height="50"/>
+            <rect x="20" y="150" width="30" height="30" fill="white"/>
+            <rect x="25" y="155" width="20" height="20" fill="#0f172a"/>
+            
+            <rect x="80" y="10" width="10" height="10"/>
+            <rect x="100" y="10" width="10" height="10"/>
+            <rect x="120" y="10" width="10" height="10"/>
+            <rect x="80" y="30" width="10" height="10"/>
+            <rect x="110" y="30" width="10" height="10"/>
+            <rect x="80" y="50" width="10" height="10"/>
+            <rect x="100" y="50" width="10" height="10"/>
+            
+            <rect x="10" y="80" width="10" height="10"/>
+            <rect x="30" y="80" width="10" height="10"/>
+            <rect x="50" y="80" width="10" height="10"/>
+            <rect x="10" y="100" width="10" height="10"/>
+            <rect x="40" y="100" width="10" height="10"/>
+            <rect x="10" y="120" width="10" height="10"/>
+            <rect x="30" y="120" width="10" height="10"/>
+            <rect x="50" y="120" width="10" height="10"/>
+            
+            <rect x="140" y="80" width="10" height="10"/>
+            <rect x="160" y="80" width="10" height="10"/>
+            <rect x="180" y="80" width="10" height="10"/>
+            <rect x="150" y="100" width="10" height="10"/>
+            <rect x="170" y="100" width="10" height="10"/>
+            <rect x="140" y="120" width="10" height="10"/>
+            <rect x="160" y="120" width="10" height="10"/>
+            
+            <rect x="80" y="80" width="10" height="10"/>
+            <rect x="100" y="80" width="10" height="10"/>
+            <rect x="120" y="80" width="10" height="10"/>
+            <rect x="90" y="90" width="10" height="10"/>
+            <rect x="110" y="90" width="10" height="10"/>
+            <rect x="80" y="100" width="10" height="10"/>
+            <rect x="120" y="100" width="10" height="10"/>
+            <rect x="100" y="110" width="10" height="10"/>
+            <rect x="80" y="120" width="10" height="10"/>
+            <rect x="110" y="120" width="10" height="10"/>
+            <rect x="130" y="120" width="10" height="10"/>
+            
+            <rect x="80" y="140" width="10" height="10"/>
+            <rect x="100" y="140" width="10" height="10"/>
+            <rect x="120" y="140" width="10" height="10"/>
+            <rect x="140" y="140" width="10" height="10"/>
+            <rect x="160" y="140" width="10" height="10"/>
+            <rect x="80" y="160" width="10" height="10"/>
+            <rect x="110" y="160" width="10" height="10"/>
+            <rect x="140" y="160" width="10" height="10"/>
+            <rect x="170" y="160" width="10" height="10"/>
+            <rect x="90" y="170" width="10" height="10"/>
+            <rect x="120" y="170" width="10" height="10"/>
+            <rect x="150" y="170" width="10" height="10"/>
+            <rect x="180" y="170" width="10" height="10"/>
+          </g>
+        </svg>
+        <div class="qr-label">📱 اسکن کن</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer class="footer">
+  <p>ساخته‌شده با ❤️ توسط <a href="https://github.com/devillhacker">سامان منتظری</a></p>
+  <p class="credit">جیب من — نسخه ۱.۰.۱ — © ۱۴۰۴</p>
+</footer>
+
+<!-- ============ SCROLL ANIMATION ============ -->
+<script>
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+    }
+  });
+}, { threshold: 0.1 });
+
+document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+</script>
+
+</body>
+</html>
