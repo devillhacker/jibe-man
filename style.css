@@ -33,6 +33,7 @@ body.dark .card{background:#1e293b;border-color:#334155}
 body.dark .section-header h3{color:#f1f5f9}
 .link-btn{font-size:12px;color:#6366f1;font-weight:600;background:none;border:none;cursor:pointer;font-family:inherit}
 
+/* ===== Splash ===== */
 #splash{position:fixed;inset:0;z-index:9999;background:linear-gradient(135deg,#ef4444,#dc2626);display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .5s;color:white}
 #splash.hide{opacity:0;pointer-events:none}
 .splash-logo{width:120px;height:120px;border-radius:32px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:60px;font-weight:900;color:white;box-shadow:0 20px 50px rgba(0,0,0,.2);margin-bottom:24px;animation:pop 1s cubic-bezier(.16,1,.3,1)}
@@ -45,6 +46,52 @@ body.dark .section-header h3{color:#f1f5f9}
 @keyframes pop{0%{transform:scale(0) rotate(-180deg);opacity:0}100%{transform:scale(1) rotate(0);opacity:1}}
 @keyframes dot{0%,100%{opacity:.4;transform:scale(1)}50%{opacity:1;transform:scale(1.3)}}
 
+/* ===== Sync Status Badge ===== */
+.sync-badge{font-size:10px;padding:5px 10px;border-radius:12px;background:#f1f5f9;color:#64748b;font-weight:700;cursor:pointer;white-space:nowrap;user-select:none}
+body.dark .sync-badge{background:#334155;color:#cbd5e1}
+.sync-badge[title*="سینک شده"]{background:#dcfce7;color:#166534}
+body.dark .sync-badge[title*="سینک شده"]{background:#14532d;color:#86efac}
+.sync-badge[title*="در حال"]{background:#fef3c7;color:#92400e;animation:blink 1s infinite}
+body.dark .sync-badge[title*="در حال"]{background:#78350f;color:#fcd34d}
+.sync-badge[title*="آفلاین"]{background:#fee2e2;color:#991b1b}
+body.dark .sync-badge[title*="آفلاین"]{background:#7f1d1d;color:#fca5a5}
+.sync-badge[title*="انتظار"]{background:#ffedd5;color:#9a3412}
+body.dark .sync-badge[title*="انتظار"]{background:#7c2d12;color:#fdba74}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.5}}
+
+/* ===== Auth Screen ===== */
+#authScreen{position:fixed;inset:0;z-index:500;background:linear-gradient(135deg,#ef4444,#dc2626);display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto}
+.auth-container{background:white;border-radius:24px;padding:32px 24px;max-width:400px;width:100%;box-shadow:0 30px 80px rgba(0,0,0,.3);margin:auto}
+body.dark .auth-container{background:#1e293b}
+.auth-logo{width:80px;height:80px;border-radius:24px;background:linear-gradient(135deg,#ef4444,#dc2626);display:flex;align-items:center;justify-content:center;color:white;font-weight:900;font-size:36px;margin:0 auto 16px;box-shadow:0 12px 30px rgba(239,68,68,.35)}
+.auth-title{font-size:26px;font-weight:900;text-align:center;color:#0f172a;margin:0 0 6px}
+body.dark .auth-title{color:#f1f5f9}
+.auth-subtitle{font-size:13px;color:#64748b;text-align:center;margin:0 0 24px}
+body.dark .auth-subtitle{color:#94a3b8}
+.auth-tabs{display:flex;background:#f1f5f9;border-radius:14px;padding:4px;gap:4px;margin-bottom:20px}
+body.dark .auth-tabs{background:#0f172a}
+.auth-tab{flex:1;padding:11px;border-radius:10px;border:none;background:transparent;font-family:inherit;font-size:14px;font-weight:700;color:#64748b;cursor:pointer;transition:all .15s}
+body.dark .auth-tab{color:#94a3b8}
+.auth-tab.active{background:white;color:var(--primary);box-shadow:0 2px 6px rgba(0,0,0,.06)}
+body.dark .auth-tab.active{background:#334155;color:#a5b4fc}
+.auth-field{margin-bottom:14px}
+.auth-field label{display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px}
+body.dark .auth-field label{color:#94a3b8}
+.auth-field input{width:100%;padding:14px 16px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0;font-size:14px;color:#0f172a;outline:none;font-family:inherit;transition:border-color .15s}
+body.dark .auth-field input{background:#0f172a;border-color:#334155;color:#f1f5f9}
+.auth-field input:focus{border-color:var(--primary)}
+.auth-error{background:#fef2f2;color:#dc2626;padding:11px 14px;border-radius:12px;font-size:12.5px;font-weight:600;margin-bottom:14px;text-align:center;border:1px solid #fca5a5}
+body.dark .auth-error{background:rgba(220,38,38,.15);border-color:#dc2626;color:#f87171}
+.auth-submit{width:100%;padding:15px;border-radius:14px;background:linear-gradient(135deg,var(--primary),#4f46e5);color:white;font-size:15px;font-weight:800;border:none;cursor:pointer;font-family:inherit;box-shadow:0 8px 20px rgba(99,102,241,.3);transition:transform .1s}
+.auth-submit:active{transform:scale(.98)}
+.auth-submit:disabled{background:#cbd5e1;cursor:not-allowed;box-shadow:none}
+.auth-footer{text-align:center;margin-top:18px;font-size:13px;color:#64748b}
+body.dark .auth-footer{color:#94a3b8}
+.auth-link{background:none;border:none;color:var(--primary);font-weight:700;cursor:pointer;font-family:inherit;font-size:13px;padding:0 4px;text-decoration:underline}
+.auth-note{margin-top:24px;padding-top:16px;border-top:1px solid #f1f5f9;font-size:11px;color:#94a3b8;text-align:center}
+body.dark .auth-note{border-top-color:#334155}
+
+/* ===== Modal ===== */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;opacity:0;pointer-events:none;transition:opacity .25s}
 .modal-overlay.open{opacity:1;pointer-events:auto}
 .modal-sheet{position:fixed;bottom:0;left:0;right:0;max-height:95vh;background:white;border-radius:24px 24px 0 0;z-index:101;transform:translateY(100%);transition:transform .3s;display:flex;flex-direction:column;overflow:hidden}
