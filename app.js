@@ -1,5 +1,5 @@
 /* ============================================
-   جیب من — app.js (تکه ۱ از ۲)
+   جیب من — app.js
    ============================================ */
 
 const STORAGE_KEY = 'jib_man_v9';
@@ -83,22 +83,53 @@ function mergeDefault(p){
     {installments: p.installments||[]},
     {plans: p.plans||{}});
 }
+
+/* ⚡ تابع آپدیت‌شده: سینک خودکار تضمینی */
 function saveData(){
   try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data)); }
   catch(e){ console.error(e); }
-  // سینک خودکار (اگه کاربر لاگین و آنلاین باشه)
-  if(state.currentUser && navigator.onLine){
+  // سینک خودکار — همیشه تلاش کن
+  if(navigator.onLine){
     scheduleAutoSync();
+  } else {
+    if(typeof updateSyncStatus === 'function') updateSyncStatus('pending');
   }
 }
 let autoSyncTimer = null;
+let autoSyncLock = false;
 function scheduleAutoSync(){
   if(autoSyncTimer) clearTimeout(autoSyncTimer);
-  autoSyncTimer = setTimeout(() => {
-    if(typeof uploadToCloud === 'function'){
-      uploadToCloud(state.data).catch(()=>{});
+  autoSyncTimer = setTimeout(async () => {
+    // اگه کاربر لاگین نیست، از سرور چک کن
+    if(!state.currentUser){
+      try {
+        if(typeof sbClient !== 'undefined' && sbClient){
+          const { data: { session } } = await sbClient.auth.getSession();
+          if(session){
+            state.currentUser = session.user;
+          } else {
+            if(typeof updateSyncStatus === 'function') updateSyncStatus('offline');
+            return;
+          }
+        } else {
+          return;
+        }
+      } catch(e){ return; }
     }
-  }, 3000);
+    if(autoSyncLock) return;
+    autoSyncLock = true;
+    try{
+      if(typeof uploadToCloud === 'function'){
+        await uploadToCloud(state.data);
+        console.log('✅ سینک خودکار انجام شد');
+      }
+    }catch(e){
+      console.error('❌ خطا در سینک خودکار:', e);
+      if(typeof updateSyncStatus === 'function') updateSyncStatus('pending');
+    } finally {
+      autoSyncLock = false;
+    }
+  }, 2000);
 }
 
 /* ===== Utilities ===== */
@@ -325,7 +356,7 @@ document.querySelectorAll('.nav-item').forEach(el=>el.addEventListener('click',(
 $('settingsBtn').addEventListener('click',()=>switchTab('settings'));
 
 /* ===== Auth UI ===== */
-let authMode = 'login'; // 'login' | 'signup'
+let authMode = 'login';
 
 function showAuthScreen(){
   $('authScreen').classList.remove('hidden');
@@ -380,7 +411,6 @@ $('authForm').addEventListener('submit', async (e)=>{
       await signIn(email, password);
     } else {
       await signUp(email, password);
-      // اگه ثبت‌نام موفق بود، بلافاصله ورود
       await signIn(email, password);
     }
     state.currentUser = currentUser;
@@ -401,7 +431,6 @@ $('authForm').addEventListener('submit', async (e)=>{
 
 async function onUserLoggedIn(){
   $('userEmail').textContent = state.currentUser.email || '';
-  // آپلود داده‌های محلی به سرور (اگه داده محلی داریم)
   try{
     const localHasData = state.data.accounts.length > 0 || state.data.transactions.length > 0;
     if(localHasData){
@@ -409,7 +438,6 @@ async function onUserLoggedIn(){
       await uploadToCloud(state.data);
       showToast('✅ داده‌ها به سرور منتقل شد');
     } else {
-      // دانلود از سرور
       try{
         const cloud = await downloadFromCloud();
         if(cloud.accounts.length || cloud.transactions.length){
@@ -426,7 +454,6 @@ async function onUserLoggedIn(){
     }
   }catch(e){ console.error('خطا در سینک اولیه:', e); }
 
-  // رندر
   if(!state.data.settings.setupDone || !state.data.accounts.length){
     $('setupScreen').classList.remove('hidden');
     $('mainApp').classList.add('hidden');
@@ -471,10 +498,6 @@ function enterMainApp(){
     if(typeof updateSyncStatus === 'function') updateSyncStatus('online');
   }
 }
-
-/* ============================================
-   جیب من — app.js (تکه ۲ از ۲)
-   ============================================ */
 
 /* ===== Card Modal ===== */
 const CARD_COLORS=['#dc2626','#2563eb','#059669','#7c3aed','#db2777','#ea580c','#0891b2','#65a30d'];
@@ -1401,17 +1424,12 @@ $('btnLogout').addEventListener('click', async ()=>{
 /* ===== Init ===== */
 async function init(){
   applyTheme();
-
-  // Splash screen
   setTimeout(()=>{
     $('splash').classList.add('hide');
     setTimeout(()=>{ const s = $('splash'); if(s) s.remove(); }, 600);
   }, 2000);
-
-  // فعال‌سازی Supabase
   try {
     await initSupabase();
-    // چک کردن لاگین
     const logged = await checkAuth();
     if(logged){
       state.currentUser = currentUser;
@@ -1427,7 +1445,6 @@ async function init(){
     setAuthMode('login');
     showAuthError('اتصال به سرور برقرار نیست. اینترنت را چک کن.');
   }
-
   setInterval(checkNotifications, 30000);
   setTimeout(checkNotifications, 3000);
   console.log('✅ جیب من آماده شد');
