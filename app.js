@@ -372,47 +372,69 @@ function getInstStatus(inst){
 function getInstallmentDisplay(inst){
   const info = getInstStatus(inst);
   if(info.unpaidMonths.length === 0){
-    return { status:'paid', count:0, totalAmount:0, meta:'' };
+    return { status:'paid', count:0, totalAmount:0, meta:'✓ این ماه پرداخت شد' };
   }
+  
   const first = info.firstUnpaid;
   const today = toJalaliParts(new Date());
   const dueCmp = first.y*10000 + first.m*100 + first.dueDay;
   const todayCmp = today.y*10000 + today.m*100 + today.d;
-  if(dueCmp >= todayCmp && first.y === today.y && first.m === today.m){
-    return {
-      status: 'ok',
-      count: info.count,
-      totalAmount: info.totalAmount,
-      meta: `${toFa(first.dueDay)} ${jalaliMonthName(`${first.y}-${String(first.m).padStart(2,'0')}`)} — ${toFa(Math.abs(info.daysDiff))} روز دیگه`,
-      dueDate: info.firstDue,
-      unpaidMonths: info.unpaidMonths
-    };
-  }
+  const daysDiff = info.daysDiff;
+  
+  // 🔴 چند ماه پرداخت نشده (×N)
   if(info.count > 1){
     return {
       status: 'danger',
       count: info.count,
       totalAmount: info.totalAmount,
-      meta: `${toFa(info.count)} ماه پرداخت نشده`,
+      meta: `${toFa(info.count)} ماه پرداخت نشده — مجموع ${toFa(info.count)} قسط`,
       dueDate: info.firstDue,
       unpaidMonths: info.unpaidMonths
     };
   }
-  if(info.daysDiff < 0){
+  
+  // 🟡 امروز سررسید
+  if(daysDiff === 0){
+    return {
+      status: 'warn',
+      count: 1,
+      totalAmount: info.totalAmount,
+      meta: `⏰ امروز سررسید — ${toFa(first.dueDay)} ${jalaliMonthName(`${first.y}-${String(first.m).padStart(2,'0')}`)}`,
+      dueDate: info.firstDue,
+      unpaidMonths: info.unpaidMonths
+    };
+  }
+  
+  // 🔴 گذشته (یه ماه)
+  if(daysDiff < 0){
     return {
       status: 'danger',
       count: 1,
       totalAmount: info.totalAmount,
-      meta: `${toFa(Math.abs(info.daysDiff))} روز از سررسید گذشته`,
+      meta: `${toFa(Math.abs(daysDiff))} روز از سررسید گذشته`,
       dueDate: info.firstDue,
       unpaidMonths: info.unpaidMonths
     };
   }
+  
+  // 🟡 نزدیک (۱-۳ روز)
+  if(daysDiff <= 3){
+    return {
+      status: 'warn',
+      count: 1,
+      totalAmount: info.totalAmount,
+      meta: `${toFa(daysDiff)} روز دیگه مونده — ${toFa(first.dueDay)} ${jalaliMonthName(`${first.y}-${String(first.m).padStart(2,'0')}`)}`,
+      dueDate: info.firstDue,
+      unpaidMonths: info.unpaidMonths
+    };
+  }
+  
+  // 🔵 سر وقت (بیشتر از ۳ روز)
   return {
-    status: 'warn',
-    count: info.count,
+    status: 'ok',
+    count: 1,
     totalAmount: info.totalAmount,
-    meta: `${toFa(info.daysDiff)} روز مونده`,
+    meta: `${toFa(daysDiff)} روز دیگه مونده — ${toFa(first.dueDay)} ${jalaliMonthName(`${first.y}-${String(first.m).padStart(2,'0')}`)}`,
     dueDate: info.firstDue,
     unpaidMonths: info.unpaidMonths
   };
