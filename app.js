@@ -277,30 +277,69 @@ function jalaliMonthLength(jy,jm){
   if(jm<=11) return 30;
   return ((jy+12)%33)%4===0?30:29;
 }
-function jalaliToGregorian(jy,jm,jd){
+function jalaliToGregorian(jy, jm, jd) {
   jy = parseInt(jy); jm = parseInt(jm); jd = parseInt(jd);
   
-  // مبدأ: 1/1/1 شمسی ≈ 21 مارس 622 میلادی
-  const baseDate = new Date(622, 2, 21);
+  // الگوریتم دقیق تبدیل شمسی به میلادی
+  // مرجع: Birashk algorithm
   
-  // تخمین اولیه
-  const totalDays = (jy - 1) * 365.2425 + (jm - 1) * 30.44 + (jd - 1);
-  let guess = new Date(baseDate);
-  guess.setDate(guess.getDate() + Math.floor(totalDays));
-  
-  // اصلاح دقیق با Intl
-  for (let i = 0; i < 10; i++) {
-    const j = toJalaliParts(guess);
-    if (j.y === jy && j.m === jm && j.d === jd) break;
-    
-    const diffDays = (jy - j.y) * 365 + (jm - j.m) * 30 + (jd - j.d);
-    if (diffDays === 0) break;
-    
-    guess.setDate(guess.getDate() + diffDays);
+  let gy;
+  if (jy > 979) {
+    gy = jy + 621;
+  } else {
+    gy = jy + 622;
   }
   
-  guess.setHours(0, 0, 0, 0);
-  return guess;
+  // محاسبه روز سال شمسی
+  let days = 0;
+  if (jm <= 7) {
+    days = (jm - 1) * 31;
+  } else {
+    days = (jm - 1) * 30 + 6;
+  }
+  days += jd - 1;
+  
+  // روز سال شمسی تا اول فروردین
+  // مبدأ: 1/1/1 شمسی = 19 مارس 622 میلادی
+  // یا برای سال‌های جدید: 1/1/1400 = 21 مارس 2021
+  
+  // استفاده از مبدأ دقیق: 1/1/1400 = 2021/03/21
+  const refJY = 1400, refJM = 1, refJD = 1;
+  const refDate = new Date(2021, 2, 21); // 21 مارس 2021
+  
+  // محاسبه تفاضل روز از مبدأ
+  let diffDays = 0;
+  
+  if (jy > refJY) {
+    for (let y = refJY; y < jy; y++) {
+      diffDays += isLeapJalaliYear(y) ? 366 : 365;
+    }
+  } else if (jy < refJY) {
+    for (let y = jy; y < refJY; y++) {
+      diffDays -= isLeapJalaliYear(y) ? 366 : 365;
+    }
+  }
+  
+  // اضافه کردن ماه‌های شمسی
+  if (jm <= 7) {
+    diffDays += (jm - 1) * 31;
+  } else {
+    diffDays += (6 * 31) + (jm - 7) * 30;
+  }
+  diffDays += jd - 1;
+  
+  // نتیجه
+  const result = new Date(refDate);
+  result.setDate(result.getDate() + diffDays);
+  result.setHours(0, 0, 0, 0);
+  
+  return result;
+}
+
+function isLeapJalaliYear(jy) {
+  // سال کبیسه شمسی
+  const remainder = jy % 33;
+  return [1, 5, 9, 13, 17, 22, 26, 30].includes(remainder);
 }
 function addJalaliMonths(jy, jm, n){
   let total = jy*12 + (jm-1) + n;
