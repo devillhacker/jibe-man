@@ -84,11 +84,11 @@ function mergeDefault(p){
     {plans: p.plans||{}});
 }
 
-/* ⚡ تابع آپدیت‌شده: سینک خودکار تضمینی */
+/* ===== Auto Sync (هر ۱ دقیقه) ===== */
 function saveData(){
   try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data)); }
   catch(e){ console.error(e); }
-  // سینک خودکار — همیشه تلاش کن
+  // سینک خودکار فوری (اگه تغییر کردی)
   if(navigator.onLine){
     scheduleAutoSync();
   } else {
@@ -100,20 +100,16 @@ let autoSyncLock = false;
 function scheduleAutoSync(){
   if(autoSyncTimer) clearTimeout(autoSyncTimer);
   autoSyncTimer = setTimeout(async () => {
-    // اگه کاربر لاگین نیست، از سرور چک کن
     if(!state.currentUser){
       try {
         if(typeof sbClient !== 'undefined' && sbClient){
           const { data: { session } } = await sbClient.auth.getSession();
-          if(session){
-            state.currentUser = session.user;
-          } else {
+          if(session){ state.currentUser = session.user; }
+          else {
             if(typeof updateSyncStatus === 'function') updateSyncStatus('offline');
             return;
           }
-        } else {
-          return;
-        }
+        } else { return; }
       } catch(e){ return; }
     }
     if(autoSyncLock) return;
@@ -121,16 +117,97 @@ function scheduleAutoSync(){
     try{
       if(typeof uploadToCloud === 'function'){
         await uploadToCloud(state.data);
-        console.log('✅ سینک خودکار انجام شد');
+        console.log('✅ سینک خودکار (بعد تغییر)');
       }
     }catch(e){
       console.error('❌ خطا در سینک خودکار:', e);
       if(typeof updateSyncStatus === 'function') updateSyncStatus('pending');
-    } finally {
-      autoSyncLock = false;
-    }
+    } finally { autoSyncLock = false; }
   }, 2000);
 }
+
+/* چک خودکار هر ۱ دقیقه */
+let lastSyncCheck = 0;
+setInterval(async () => {
+  if(!navigator.onLine) return;
+  if(!state.currentUser) return;
+  if(autoSyncLock) return;
+  // اگه کمتر از ۵۰ ثانیه پیش چک کردیم، صرف‌نظر
+  if(Date.now() - lastSyncCheck < 50000) return;
+  lastSyncCheck = Date.now();
+  try {
+    console.log('🔍 چک خودکار سینک...');
+    // فقط اگه چیزی توی صف نیست
+    if(typeof downloadFromCloud === 'function'){
+      // دریافت لیست سرور
+      const cloud = await downloadFromCloud();
+      // مقایسه ساده: اگه تعداد تراکنش‌های سرور بیشتر از محلی
+      const cloudCount = cloud.transactions.length + cloud.accounts.length + cloud.installments.length;
+      const localCount = state.data.transactions.length + state.data.accounts.length + state.data.installments.length;
+      if(cloudCount > localCount && cloud.transactions.length > 0){
+        // سرور جدیدتره → بیا بگیر
+        console.log('📥 سرور جدیدتره، دریافت...');
+        state.data.accounts = cloud.accounts;
+        state.data.transactions = cloud.transactions;
+        state.data.installments = cloud.installments;
+        state.data.plans = cloud.plans;
+        if(cloud.categories) state.data.categories = cloud.categories;
+        if(cloud.settings) state.data.settings = Object.assign(state.data.settings, cloud.settings);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data));
+        // رندر
+        if(typeof renderDashboard === 'function'){
+          if(state.activeTab === 'dashboard') renderDashboard();
+          else if(state.activeTab === 'transactions') renderTransactions();
+          else if(state.activeTab === 'installments') renderInstallments();
+        }
+        console.log('✅ داده‌های جدید از سرور دریافت شد');
+      }
+    }
+  } catch(e){ console.warn('چک خودکار خطا:', e); }
+}, 60000); // هر ۶۰ ثانیه
+
+/* تابع سینک دستی (وقتی روی badge کلیک کنی) */
+async function manualSync(){
+  if(!state.currentUser){ showToast('اول وارد شو','error'); return; }
+  if(!navigator.onLine){ showToast('اینترنت وصل نیست','error'); return; }
+  if(autoSyncLock){ showToast('در حال سینک...'); return; }
+  autoSyncLock = true;
+  if(typeof updateSyncStatus === 'function') updateSyncStatus('syncing');
+  showToast('🔄 در حال سینک...');
+  try {
+    // ۱. اول آپلود
+    if(typeof uploadToCloud === 'function'){
+      await uploadToCloud(state.data);
+    }
+    // ۲. بعد دانلود (شاید سرور چیز جدیدی داره)
+    if(typeof downloadFromCloud === 'function'){
+      const cloud = await downloadFromCloud();
+      // مقایسه
+      const cloudCount = cloud.transactions.length + cloud.accounts.length + cloud.installments.length;
+      const localCount = state.data.transactions.length + state.data.accounts.length + state.data.installments.length;
+      if(cloudCount >= localCount){
+        state.data.accounts = cloud.accounts;
+        state.data.transactions = cloud.transactions;
+        state.data.installments = cloud.installments;
+        state.data.plans = cloud.plans;
+        if(cloud.categories) state.data.categories = cloud.categories;
+        if(cloud.settings) state.data.settings = Object.assign(state.data.settings, cloud.settings);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data));
+      }
+    }
+    if(typeof updateSyncStatus === 'function') updateSyncStatus('online');
+    showToast('✅ سینک کامل شد');
+    // رندر همه
+    if(typeof renderDashboard === 'function') renderDashboard();
+    if(typeof renderTransactions === 'function') renderTransactions();
+    if(typeof renderInstallments === 'function') renderInstallments();
+  } catch(e){
+    console.error(e);
+    showToast('خطا در سینک','error');
+    if(typeof updateSyncStatus === 'function') updateSyncStatus('pending');
+  } finally { autoSyncLock = false; }
+}
+window.manualSync = manualSync;
 
 /* ===== Utilities ===== */
 const toFa = s => String(s).replace(/\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[d]);
