@@ -330,94 +330,122 @@ function getInstStatus(inst){
     const todayMid = new Date(now);
     todayMid.setHours(0, 0, 0, 0);
     
-    // ✅ قدم ۱: پیدا کردن سررسید بعدی از امروز به بعد
-    let nextY = today.y;
-    let nextM = today.m;
+    // ✅ چک کن قسط کِی ساخته شده
+    const createdMonth = inst.createdMonth;
+    let isNewlyCreated = false;
     
-    // اگه سررسید این ماه گذشته → برو ماه بعد
-    const thisLen = jalaliMonthLength(nextY, nextM);
+    if (createdMonth) {
+      const [cy, cm] = createdMonth.split('-').map(Number);
+      // اگه قسط توی ماه جاری ساخته شده
+      if (cy === today.y && cm === today.m) {
+        isNewlyCreated = true;
+      }
+    }
+    
+    // ✅ قدم ۱: سررسید این ماه
+    const thisLen = jalaliMonthLength(today.y, today.m);
     const thisDay = Math.min(dueDay, thisLen);
-    
-    if (thisDay < today.d) {
-      nextM++;
-      if (nextM > 12) { nextM = 1; nextY++; }
-    }
-    
-    // ✅ قدم ۲: اگه سررسید بعدی پرداخت شده، برو ماه بعد
-    let safety = 0;
-    while (safety < 24) {
-      safety++;
-      const mKey = `${nextY}-${String(nextM).padStart(2, '0')}`;
-      if (!paidMonths[mKey]) break;
-      
-      nextM++;
-      if (nextM > 12) { nextM = 1; nextY++; }
-    }
-    
-    const nextLen = jalaliMonthLength(nextY, nextM);
-    const nextDay = Math.min(dueDay, nextLen);
-    const nextKey = `${nextY}-${String(nextM).padStart(2, '0')}`;
-    const nextDate = jalaliToGregorian(nextY, nextM, nextDay);
-    const nextMid = new Date(nextDate);
-    nextMid.setHours(0, 0, 0, 0);
-    
-    // ✅ قدم ۳: چک کن ماه قبل پرداخت شده یا نه
-    let prevM = today.m - 1;
-    let prevY = today.y;
-    if (prevM < 1) { prevM = 12; prevY--; }
-    
-    const prevLen = jalaliMonthLength(prevY, prevM);
-    const prevDay = Math.min(dueDay, prevLen);
-    const prevKey = `${prevY}-${String(prevM).padStart(2, '0')}`;
-    const prevDate = jalaliToGregorian(prevY, prevM, prevDay);
-    const prevMid = new Date(prevDate);
-    prevMid.setHours(0, 0, 0, 0);
-    
-    // اگه سررسید ماه قبل گذشته و پرداخت نشده → danger
-    if (prevMid < todayMid && !paidMonths[prevKey]) {
-      const pastDays = Math.round((todayMid - prevMid) / 86400000);
-      return {
-        status: 'danger',
-        count: 1,
-        totalAmount: inst.amount,
-        firstDue: prevDate,
-        firstUnpaid: { key: prevKey, y: prevY, m: prevM, dueDay: prevDay },
-        daysDiff: -pastDays,
-        isPast: true
-      };
-    }
-    
-    // ✅ قدم ۴: سررسید این ماه گذشته و پرداخت نشده → danger
     const thisKey = `${today.y}-${String(today.m).padStart(2, '0')}`;
     const thisDate = jalaliToGregorian(today.y, today.m, thisDay);
     const thisMid = new Date(thisDate);
     thisMid.setHours(0, 0, 0, 0);
     
-    if (thisMid < todayMid && !paidMonths[thisKey]) {
-      const pastDays = Math.round((todayMid - thisMid) / 86400000);
-      return {
-        status: 'danger',
-        count: 1,
-        totalAmount: inst.amount,
-        firstDue: thisDate,
-        firstUnpaid: { key: thisKey, y: today.y, m: today.m, dueDay: thisDay },
-        daysDiff: -pastDays,
-        isPast: true
-      };
+    // ✅ قدم ۲: اگه قسط امروز ساخته شده و سررسید این ماه گذشته → از ماه بعد
+    let startFromNextMonth = false;
+    
+    if (isNewlyCreated && thisMid < todayMid) {
+      // قسط امروز ساخته شده و سررسید این ماه گذشته → از ماه بعد
+      startFromNextMonth = true;
     }
     
-    // ✅ قدم ۵: سر وقت (سررسید آینده)
-    const daysDiff = Math.round((nextMid - todayMid) / 86400000);
+    // ✅ قدم ۳: پیدا کردن سررسید مناسب
+    let targetY = today.y;
+    let targetM = today.m;
     
+    if (startFromNextMonth) {
+      // از ماه بعد شروع کن
+      targetM++;
+      if (targetM > 12) { targetM = 1; targetY++; }
+    } else if (thisMid < todayMid) {
+      // سررسید این ماه گذشته ولی قسط قدیمیه → danger
+      const thisKey2 = `${today.y}-${String(today.m).padStart(2, '0')}`;
+      if (!paidMonths[thisKey2]) {
+        const pastDays = Math.round((todayMid - thisMid) / 86400000);
+        return {
+          status: 'danger',
+          count: 1,
+          totalAmount: inst.amount,
+          firstDue: thisDate,
+          firstUnpaid: { key: thisKey, y: today.y, m: today.m, dueDay: thisDay },
+          daysDiff: -pastDays,
+          isPast: true
+        };
+      }
+      // پرداخت شده → برو ماه بعد
+      targetM++;
+      if (targetM > 12) { targetM = 1; targetY++; }
+    }
+    
+    // ✅ قدم ۴: اگه سررسید هدف پرداخت شده، برو ماه بعد
+    let safety = 0;
+    while (safety < 24) {
+      safety++;
+      const tKey = `${targetY}-${String(targetM).padStart(2, '0')}`;
+      if (!paidMonths[tKey]) break;
+      
+      targetM++;
+      if (targetM > 12) { targetM = 1; targetY++; }
+    }
+    
+    // ✅ قدم ۵: سررسید نهایی
+    const targetLen = jalaliMonthLength(targetY, targetM);
+    const targetDay = Math.min(dueDay, targetLen);
+    const targetKey = `${targetY}-${String(targetM).padStart(2, '0')}`;
+    const targetDate = jalaliToGregorian(targetY, targetM, targetDay);
+    const targetMid = new Date(targetDate);
+    targetMid.setHours(0, 0, 0, 0);
+    
+    const daysDiff = Math.round((targetMid - todayMid) / 86400000);
+    
+    // ✅ اگه ۱ ماه قبل پرداخت نشده → danger
+    let prevM = targetM - 1;
+    let prevY = targetY;
+    if (prevM < 1) { prevM = 12; prevY--; }
+    
+    // فقط اگه قسط قدیمیه، ماه قبل رو چک کن
+    if (!startFromNextMonth) {
+      const prevLen = jalaliMonthLength(prevY, prevM);
+      const prevDay = Math.min(dueDay, prevLen);
+      const prevKey = `${prevY}-${String(prevM).padStart(2, '0')}`;
+      const prevDate = jalaliToGregorian(prevY, prevM, prevDay);
+      const prevMid = new Date(prevDate);
+      prevMid.setHours(0, 0, 0, 0);
+      
+      if (prevMid < todayMid && !paidMonths[prevKey]) {
+        const pastDays = Math.round((todayMid - prevMid) / 86400000);
+        return {
+          status: 'danger',
+          count: 1,
+          totalAmount: inst.amount,
+          firstDue: prevDate,
+          firstUnpaid: { key: prevKey, y: prevY, m: prevM, dueDay: prevDay },
+          daysDiff: -pastDays,
+          isPast: true
+        };
+      }
+    }
+    
+    // ✅ سر وقت یا نزدیک
     let status = 'ok';
     if (daysDiff <= 3) status = 'warn';
+    if (daysDiff === 0) status = 'warn';
     
     return {
       status: status,
       count: 1,
       totalAmount: inst.amount,
-      firstDue: nextDate,
-      firstUnpaid: { key: nextKey, y: nextY, m: nextM, dueDay: nextDay },
+      firstDue: targetDate,
+      firstUnpaid: { key: targetKey, y: targetY, m: targetM, dueDay: targetDay },
       daysDiff: daysDiff,
       isPast: false
     };
