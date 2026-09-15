@@ -327,24 +327,29 @@ function getInstStatus(inst){
     const now = new Date();
     const today = toJalaliParts(now);
     const paidMonths = Object.keys(inst.paidMonths||{});
-    
-    let createdKey = inst.createdMonth;
-    if(!createdKey) createdKey = jalaliMonthKey(now);
-    
-    const parts = createdKey.split('-');
-    const cy = parseInt(parts[0]) || today.y;
-    const cm = parseInt(parts[1]) || today.m;
     const dueDay = Math.max(1, Math.min(31, inst.day || 1));
     
-    // جستجو از ماه جاری
+    // 🔍 پیدا کردن سررسید بعدی از امروز به بعد
     let searchY = today.y;
     let searchM = today.m;
     let safety = 0;
     let firstUnpaid = null;
     let firstDueDate = null;
     let isPast = false;
-    let daysDiff = 0;
     
+    // ✅ قدم ۱: چک کن سررسید این ماه گذشته یا نه
+    const thisMonthLen = jalaliMonthLength(searchY, searchM);
+    const thisMonthDay = Math.min(dueDay, thisMonthLen);
+    const thisMonthKey = `${searchY}-${String(searchM).padStart(2, '0')}`;
+    const thisMonthPaid = paidMonths.includes(thisMonthKey);
+    
+    if(thisMonthDay < today.d){
+      // سررسید این ماه گذشته → برو ماه بعد
+      searchM++;
+      if(searchM > 12){ searchM = 1; searchY++; }
+    }
+    
+    // ✅ قدم ۲: از این نقطه، اولین سررسید پرداخت‌نشده رو پیدا کن
     while(safety < 24 && !firstUnpaid){
       safety++;
       
@@ -353,25 +358,11 @@ function getInstStatus(inst){
       const monthKey = `${searchY}-${String(searchM).padStart(2, '0')}`;
       const isPaid = paidMonths.includes(monthKey);
       
-      // چک کن سررسید این ماه چیه
-      let status;
-      if(searchY < today.y || (searchY === today.y && searchM < today.m)){
-        status = 'past';
-      } else if(searchY === today.y && searchM === today.m){
-        if(clampedDay < today.d) status = 'past';
-        else if(clampedDay === today.d) status = 'today';
-        else status = 'future';
-      } else {
-        status = 'future';
-      }
-      
       if(!isPaid){
         firstDueDate = jalaliToGregorian(searchY, searchM, clampedDay);
         firstUnpaid = {key: monthKey, y: searchY, m: searchM, dueDay: clampedDay};
-        isPast = (status === 'past');
+        break;
       }
-      
-      if(firstUnpaid) break;
       
       searchM++;
       if(searchM > 12){ searchM = 1; searchY++; }
@@ -381,40 +372,39 @@ function getInstStatus(inst){
       return {status:'paid', unpaidMonths:[], totalAmount:0, count:0, daysDiff:null};
     }
     
+    // ✅ قدم ۳: محاسبه فاصله روز
     const todayMid = new Date(now);
     todayMid.setHours(0, 0, 0, 0);
     const dueMid = new Date(firstDueDate);
     dueMid.setHours(0, 0, 0, 0);
-    daysDiff = Math.round((dueMid - todayMid) / 86400000);
+    const daysDiff = Math.round((dueMid - todayMid) / 86400000);
     
-    // جمع کردن ماه‌های پرداخت‌نشده
+    // ✅ قدم ۴: چک کن ماه‌های قبل پرداخت نشده هستن؟
     const unpaidList = [];
-    let checkY = cy, checkM = cm;
+    
+    // از ۱۲ ماه قبل تا ماه فعلی، همه رو چک کن
+    let checkY = today.y - 1;
+    let checkM = today.m;
     let s2 = 0;
     
-    while(s2 < 36){
+    while(s2 < 24){
       s2++;
       
       const cLen = jalaliMonthLength(checkY, checkM);
       const cDay = Math.min(dueDay, cLen);
       const cKey = `${checkY}-${String(checkM).padStart(2, '0')}`;
+      const cPaid = paidMonths.includes(cKey);
       
-      let cStatus;
-      if(checkY < today.y || (checkY === today.y && checkM < today.m)){
-        cStatus = 'past';
-      } else if(checkY === today.y && checkM === today.m){
-        if(cDay < today.d) cStatus = 'past';
-        else if(cDay === today.d) cStatus = 'today';
-        else cStatus = 'future';
-      } else {
-        cStatus = 'future';
-      }
+      // فقط ماه‌هایی که سررسیدشون رسیده (گذشته یا امروز)
+      const cIsPast = (checkY < today.y) || 
+                      (checkY === today.y && checkM < today.m) ||
+                      (checkY === today.y && checkM === today.m && cDay < today.d);
+      const cIsToday = (checkY === today.y && checkM === today.m && cDay === today.d);
       
-      if(cStatus === 'future' && unpaidList.length > 0) break;
-      
-      if(!paidMonths.includes(cKey)){
-        unpaidList.push({key:cKey, y:checkY, m:checkM, dueDay:cDay});
-        if(cStatus === 'today' || cStatus === 'future') break;
+      if(cIsPast && !cPaid){
+        unpaidList.push({key:cKey, y:checkY, m:checkM, dueDay:cDay, isPast:true});
+      } else if(cIsToday && !cPaid){
+        unpaidList.push({key:cKey, y:checkY, m:checkM, dueDay:cDay, isPast:false});
       }
       
       checkM++;
@@ -423,25 +413,63 @@ function getInstStatus(inst){
       if(checkY > today.y || (checkY === today.y && checkM > today.m)) break;
     }
     
-    const count = unpaidList.length || 1;
-    const totalAmount = inst.amount * count;
+    // ✅ اگه ماه‌های گذشته پرداخت‌نشده داریم → danger
+    if(unpaidList.length > 0){
+      // اولین سررسید گذشته (قدیمی‌ترین)
+      const oldest = unpaidList[0];
+      const oldestDate = jalaliToGregorian(oldest.y, oldest.m, oldest.dueDay);
+      const oldestMid = new Date(oldestDate);
+      oldestMid.setHours(0, 0, 0, 0);
+      const pastDays = Math.round((todayMid - oldestMid) / 86400000);
+      
+      return {
+        status: 'danger',
+        unpaidMonths: unpaidList,
+        totalAmount: inst.amount * unpaidList.length,
+        firstDue: oldestDate,
+        firstUnpaid: oldest,
+        daysDiff: -pastDays, // منفی = گذشته
+        count: unpaidList.length,
+        isPast: true
+      };
+    }
     
-    let status = 'ok';
-    if(isPast || daysDiff < 0){
-      status = 'danger';
-    } else if(daysDiff <= 3){
-      status = 'warn';
+    // ✅ اگه فقط سررسید آینده داریم
+    if(daysDiff === 0){
+      return {
+        status: 'warn',
+        unpaidMonths: [firstUnpaid],
+        totalAmount: inst.amount,
+        firstDue: firstDueDate,
+        firstUnpaid: firstUnpaid,
+        daysDiff: 0,
+        count: 1,
+        isPast: false
+      };
+    }
+    
+    if(daysDiff <= 3){
+      return {
+        status: 'warn',
+        unpaidMonths: [firstUnpaid],
+        totalAmount: inst.amount,
+        firstDue: firstDueDate,
+        firstUnpaid: firstUnpaid,
+        daysDiff: daysDiff,
+        count: 1,
+        isPast: false
+      };
     }
     
     return {
-      status: status,
-      unpaidMonths: unpaidList,
-      totalAmount: totalAmount,
+      status: 'ok',
+      unpaidMonths: [firstUnpaid],
+      totalAmount: inst.amount,
       firstDue: firstDueDate,
       firstUnpaid: firstUnpaid,
       daysDiff: daysDiff,
-      count: count,
-      isPast: isPast
+      count: 1,
+      isPast: false
     };
     
   } catch(e){
@@ -466,6 +494,7 @@ function getInstallmentDisplay(inst){
   const daysDiff = info.daysDiff;
   const count = info.count || 1;
   
+  // 🔴 عقب‌افتاده (چند ماه)
   if(count > 1 && daysDiff < 0){
     return {
       status: 'danger',
@@ -477,6 +506,7 @@ function getInstallmentDisplay(inst){
     };
   }
   
+  // 🔴 یه ماه عقب‌افتاده
   if(daysDiff < 0){
     return {
       status: 'danger',
@@ -488,6 +518,7 @@ function getInstallmentDisplay(inst){
     };
   }
   
+  // 🟡 امروز سررسید
   if(daysDiff === 0){
     return {
       status: 'warn',
@@ -499,6 +530,7 @@ function getInstallmentDisplay(inst){
     };
   }
   
+  // 🟡 نزدیک (۱-۳ روز)
   if(daysDiff <= 3){
     return {
       status: 'warn',
@@ -510,6 +542,7 @@ function getInstallmentDisplay(inst){
     };
   }
   
+  // 🔵 سر وقت
   return {
     status: 'ok',
     count: 1,
@@ -519,7 +552,6 @@ function getInstallmentDisplay(inst){
     unpaidMonths: info.unpaidMonths
   };
 }
-
 /* ===== Plans ===== */
 function getPlanForMonth(y,m){
   const key = `${y}-${String(m).padStart(2,'0')}`;
