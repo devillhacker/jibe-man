@@ -2249,3 +2249,545 @@ init();
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(()=>{}); });
 }
+/* ============================================================
+   ============ CHECKS MODULE (افزودنی) =======================
+   ============================================================
+   مدیریت کامل بخش چک‌ها. کاملاً مستقل.
+   فقط کافیه به انتهای app.js اضافه بشه.
+============================================================ */
+
+// ---------- تزریق استایل‌های چک ----------
+(function injectChkStyles() {
+  if (document.getElementById('chkStyles')) return;
+  const s = document.createElement('style');
+  s.id = 'chkStyles';
+  s.textContent = `
+    .chk-item{background:#fff;border:1px solid #fde68a;border-right:4px solid #f59e0b;
+      border-radius:14px;padding:12px 14px;margin-bottom:10px;
+      box-shadow:0 1px 4px rgba(245,158,11,.08);transition:transform .15s}
+    .chk-item:active{transform:scale(.98)}
+    .chk-item.paid{border-right-color:#10b981;border-color:#d1fae5;opacity:.7}
+    .chk-item.paid .chk-payee{text-decoration:line-through}
+    .chk-row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+    .chk-payee{font-size:14px;font-weight:800;color:#b45309}
+    .chk-desc{font-size:11px;color:#94a3b8;margin-top:2px}
+    .chk-amount{font-size:15px;font-weight:800;color:#d97706;white-space:nowrap}
+    .chk-meta{font-size:11px;color:#94a3b8;margin-top:6px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .chk-serial{background:#fef3c7;color:#b45309;padding:1px 6px;border-radius:6px;
+      font-weight:700;font-family:monospace}
+    .chk-days-left{background:#fee2e2;color:#dc2626;padding:1px 8px;border-radius:8px;
+      font-weight:700;font-size:10px}
+    .chk-days-left.soon{background:#fef3c7;color:#b45309}
+    .chk-days-left.ok{background:#d1fae5;color:#059669}
+    .chk-days-left.over{background:#dc2626;color:#fff}
+    .chk-actions{display:flex;gap:6px;margin-top:8px}
+    .chk-actions button{flex:1;padding:7px;border:none;border-radius:9px;
+      font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
+    .chk-btn-pay{background:#10b981;color:#fff}
+    .chk-btn-edit{background:#eef2ff;color:#6366f1}
+    .chk-btn-del{background:#fee2e2;color:#dc2626}
+    .chk-empty{text-align:center;padding:32px 16px;color:#94a3b8;font-size:13px}
+    .chk-empty .emoji{font-size:40px;display:block;margin-bottom:8px}
+    .dark .chk-item{background:#1e293b;border-color:#334155;border-right-color:#f59e0b}
+    .dark .chk-desc,.dark .chk-meta{color:#64748b}
+    .dark .chk-btn-edit{background:#312e81;color:#a5b4fc}
+    .dark .chk-btn-del{background:#450a0a;color:#fca5a5}
+  `;
+  document.head.appendChild(s);
+})();
+
+// ---------- helperهای امن (اگر در app.js اصلی نبودن) ----------
+if (typeof window.toFa !== 'function') {
+  window.toFa = function(n){ return String(n).replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]); };
+}
+if (typeof window.fmt !== 'function') {
+  window.fmt = function(n){
+    const num = Number(n) || 0;
+    try { return num.toLocaleString('fa-IR'); } catch(e){ return num.toLocaleString(); }
+  };
+}
+if (typeof window.escapeHtml !== 'function') {
+  window.escapeHtml = function(str){
+    return String(str == null ? '' : str).replace(/[&<>"']/g, m => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[m]));
+  };
+}
+function chkToFa(n){ return (typeof toFa === 'function') ? toFa(n) : String(n); }
+function chkFmt(n){ return (typeof fmt === 'function') ? fmt(n) : Number(n).toLocaleString(); }
+function chkEsc(s){ return (typeof escapeHtml === 'function') ? escapeHtml(s) : String(s||''); }
+
+// ---------- اطمینان از وجود آرایه checks ----------
+function ensureChecksArray() {
+  if (typeof state === 'undefined' || !state) {
+    console.warn('state تعریف نشده!');
+    return;
+  }
+  if (!Array.isArray(state.checks)) state.checks = [];
+}
+ensureChecksArray();
+
+// ---------- state موقت چک ----------
+let chkState = {
+  editingId: null,
+  selectedDate: null,   // { y, m, d, h, min }
+  pickedDate: null      // خروجی date picker
+};
+
+// ---------- فرمت تاریخ ----------
+function chkFmtDate(ts) {
+  try {
+    const d = new Date(ts);
+    let dateTxt;
+    if (typeof toJalali === 'function') {
+      dateTxt = toJalali(d.getFullYear(), d.getMonth() + 1, d.getDate());
+    } else {
+      dateTxt = `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
+    }
+    const hh = String(d.getHours()).padStart(2,'0');
+    const mm = String(d.getMinutes()).padStart(2,'0');
+    return `${dateTxt} ${hh}:${mm}`;
+  } catch(e) {
+    return new Date(ts).toLocaleDateString('fa-IR');
+  }
+}
+
+// ---------- روزهای باقی‌مانده ----------
+function chkDaysLeft(ts) {
+  const startOfToday = new Date(); startOfToday.setHours(0,0,0,0);
+  const startOfDue = new Date(ts); startOfDue.setHours(0,0,0,0);
+  return Math.round((startOfDue - startOfToday) / 86400000);
+}
+
+// ---------- رندر لیست چک‌ها ----------
+function renderChecks() {
+  ensureChecksArray();
+  const list   = document.getElementById('chkList');
+  const totalEl= document.getElementById('chkTotal');
+  const countEl= document.getElementById('chkCount');
+  if (!list) return;
+
+  const checks = (state.checks || []).slice().sort((a,b) => (a.dueDate||0) - (b.dueDate||0));
+  const unpaid = checks.filter(c => !c.paid);
+  const totalUnpaid = unpaid.reduce((s,c) => s + (Number(c.amount)||0), 0);
+
+  if (totalEl) totalEl.textContent = chkFmt(totalUnpaid) + ' تومان';
+  if (countEl) countEl.textContent = chkToFa(unpaid.length) + ' / ' + chkToFa(checks.length);
+
+  if (checks.length === 0) {
+    list.innerHTML = `
+      <div class="chk-empty">
+        <span class="emoji">🧾</span>
+        هنوز چکی ثبت نشده<br>
+        <span style="font-size:11px">با دکمه پایین اضافه کن</span>
+      </div>`;
+    return;
+  }
+
+  list.innerHTML = checks.map(c => {
+    const days = chkDaysLeft(c.dueDate);
+    let daysCls = 'ok', daysTxt = '';
+    if (c.paid) {
+      daysCls = 'ok'; daysTxt = '✅ پرداخت شده';
+    } else if (days < 0) {
+      daysCls = 'over'; daysTxt = chkToFa(Math.abs(days)) + ' روز گذشته';
+    } else if (days === 0) {
+      daysCls = 'over'; daysTxt = 'امروز سررسید!';
+    } else if (days <= 3) {
+      daysCls = 'soon'; daysTxt = chkToFa(days) + ' روز مانده';
+    } else {
+      daysCls = 'ok'; daysTxt = chkToFa(days) + ' روز مانده';
+    }
+
+    const serialHtml = c.serial ? `<span class="chk-serial">#${chkEsc(c.serial)}</span>` : '';
+    const descHtml   = c.desc ? `<div class="chk-desc">${chkEsc(c.desc)}</div>` : '';
+
+    return `
+      <div class="chk-item ${c.paid ? 'paid' : ''}" data-id="${chkEsc(c.id)}">
+        <div class="chk-row">
+          <div style="flex:1;min-width:0">
+            <div class="chk-payee">👤 ${chkEsc(c.payee || 'بدون نام')}</div>
+            ${descHtml}
+          </div>
+          <div class="chk-amount num">${chkFmt(c.amount)}</div>
+        </div>
+        <div class="chk-meta">
+          <span>📅 ${chkFmtDate(c.dueDate)}</span>
+          ${serialHtml}
+          <span class="chk-days-left ${daysCls}">${daysTxt}</span>
+        </div>
+        <div class="chk-actions">
+          ${!c.paid ? `<button class="chk-btn-pay" data-act="pay" data-id="${chkEsc(c.id)}">✅ پرداخت شد</button>` : ''}
+          <button class="chk-btn-edit" data-act="edit" data-id="${chkEsc(c.id)}">✏️ ویرایش</button>
+          <button class="chk-btn-del" data-act="del" data-id="${chkEsc(c.id)}">🗑️ حذف</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  list.querySelectorAll('button[data-act]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const act = btn.dataset.act;
+      const id  = btn.dataset.id;
+      if (act === 'pay')  markCheckPaid(id);
+      else if (act === 'edit') openCheckModal(id);
+      else if (act === 'del')  deleteCheck(id);
+    });
+  });
+}
+
+// ---------- باز کردن مودال چک ----------
+function openCheckModal(id) {
+  ensureChecksArray();
+  const overlay = document.getElementById('chkOverlay');
+  const title   = document.getElementById('chkModalTitle');
+  if (!overlay) return;
+
+  chkState.editingId = null;
+  chkState.selectedDate = null;
+
+  if (id) {
+    const c = state.checks.find(x => String(x.id) === String(id));
+    if (!c) return;
+    chkState.editingId = c.id;
+    if (title) title.textContent = '✏️ ویرایش چک';
+    document.getElementById('chkPayee').value  = c.payee  || '';
+    document.getElementById('chkDesc').value   = c.desc   || '';
+    document.getElementById('chkAmount').value = c.amount ? Number(c.amount).toLocaleString('en-US') : '';
+    document.getElementById('chkSerial').value = c.serial || '';
+    const d = new Date(c.dueDate);
+    chkState.selectedDate = {
+      y: d.getFullYear(), m: d.getMonth() + 1, d: d.getDate(),
+      h: d.getHours(),   min: d.getMinutes()
+    };
+  } else {
+    if (title) title.textContent = '💳 افزودن چک';
+    document.getElementById('chkPayee').value  = '';
+    document.getElementById('chkDesc').value   = '';
+    document.getElementById('chkAmount').value = '';
+    document.getElementById('chkSerial').value = '';
+  }
+
+  updateChkWords();
+  updateChkDateDisplay();
+  overlay.classList.add('show');
+  overlay.style.display = 'flex';
+}
+
+function closeCheckModal() {
+  const overlay = document.getElementById('chkOverlay');
+  if (overlay) {
+    overlay.classList.remove('show');
+    overlay.style.display = 'none';
+  }
+  chkState.editingId = null;
+  chkState.selectedDate = null;
+}
+
+// ---------- مبلغ به حروف ----------
+function updateChkWords() {
+  const inp   = document.getElementById('chkAmount');
+  const words = document.getElementById('chkWords');
+  if (!inp || !words) return;
+  const raw = inp.value.replace(/[^\d]/g, '');
+  if (!raw || Number(raw) === 0) { words.textContent = ''; return; }
+  try {
+    if (typeof numToWords === 'function') {
+      words.textContent = numToWords(Number(raw)) + ' تومان';
+    } else {
+      words.textContent = chkFmt(Number(raw)) + ' تومان';
+    }
+  } catch(e) { words.textContent = ''; }
+}
+
+// ---------- نمایش تاریخ انتخاب‌شده ----------
+function updateChkDateDisplay() {
+  const el = document.getElementById('chkDateValue');
+  if (!el) return;
+  if (!chkState.selectedDate) { el.textContent = 'امروز'; return; }
+  const { y, m, d, h, min } = chkState.selectedDate;
+  let txt;
+  try {
+    txt = (typeof toJalali === 'function') ? toJalali(y, m, d) : `${y}/${m}/${d}`;
+  } catch(e) { txt = `${y}/${m}/${d}`; }
+  el.textContent = txt + ' ' + String(h).padStart(2,'0') + ':' + String(min).padStart(2,'0');
+}
+
+// ---------- ذخیره چک ----------
+function saveCheck() {
+  ensureChecksArray();
+
+  const payee    = (document.getElementById('chkPayee').value  || '').trim();
+  const desc     = (document.getElementById('chkDesc').value   || '').trim();
+  const amountRaw= (document.getElementById('chkAmount').value || '').replace(/[^\d]/g, '');
+  const serial   = (document.getElementById('chkSerial').value || '').replace(/[^\d]/g, '').slice(0,4);
+
+  if (!payee) {
+    if (typeof toast === 'function') toast('نام گیرنده رو وارد کن');
+    return;
+  }
+  if (!amountRaw || Number(amountRaw) <= 0) {
+    if (typeof toast === 'function') toast('مبلغ رو درست وارد کن');
+    return;
+  }
+
+  // تاریخ سررسید
+  let dueTs;
+  if (chkState.selectedDate) {
+    const { y, m, d, h, min } = chkState.selectedDate;
+    dueTs = new Date(y, m - 1, d, h || 12, min || 0).getTime();
+  } else {
+    dueTs = Date.now();
+  }
+
+  if (chkState.editingId) {
+    const c = state.checks.find(x => String(x.id) === String(chkState.editingId));
+    if (c) {
+      c.payee   = payee;
+      c.desc    = desc;
+      c.amount  = Number(amountRaw);
+      c.serial  = serial;
+      c.dueDate = dueTs;
+    }
+    if (typeof toast === 'function') toast('✅ چک ویرایش شد');
+  } else {
+    const newChk = {
+      id: 'chk_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+      payee, desc,
+      amount: Number(amountRaw),
+      serial,
+      dueDate: dueTs,
+      paid: false,
+      paidAt: null,
+      paidCardId: null,
+      createdAt: Date.now()
+    };
+    state.checks.push(newChk);
+    if (typeof toast === 'function') toast('✅ چک اضافه شد');
+  }
+
+  if (typeof saveState === 'function') saveState();
+  closeCheckModal();
+  renderChecks();
+  if (typeof renderDashboard === 'function') { try { renderDashboard(); } catch(e){} }
+}
+
+// ---------- پرداخت چک ----------
+function markCheckPaid(id) {
+  ensureChecksArray();
+  const c = state.checks.find(x => String(x.id) === String(id));
+  if (!c || c.paid) return;
+
+  if (!confirm(`چک ${c.payee || ''} به مبلغ ${chkFmt(c.amount)} تومان پرداخت شده؟`)) return;
+
+  c.paid = true;
+  c.paidAt = Date.now();
+
+  if (typeof saveState === 'function') saveState();
+  renderChecks();
+  if (typeof toast === 'function') toast('✅ چک پرداخت شد');
+}
+
+// ---------- حذف چک ----------
+function deleteCheck(id) {
+  ensureChecksArray();
+  const c = state.checks.find(x => String(x.id) === String(id));
+  if (!c) return;
+  if (!confirm(`چک ${c.payee || ''} حذف بشه؟`)) return;
+  state.checks = state.checks.filter(x => String(x.id) !== String(id));
+  if (typeof saveState === 'function') saveState();
+  renderChecks();
+  if (typeof toast === 'function') toast('🗑️ چک حذف شد');
+}
+
+// ---------- تب داخلی اقساط / چک ----------
+function switchInstTab(tab) {
+  const instContent = document.getElementById('instContent');
+  const chkContent  = document.getElementById('chkContent');
+  const tabs = document.querySelectorAll('#instInnerTabs .filter-chip');
+
+  tabs.forEach(t => t.classList.toggle('active', t.dataset.itab === tab));
+
+  if (tab === 'checks') {
+    if (instContent) instContent.classList.add('hidden');
+    if (chkContent)  chkContent.classList.remove('hidden');
+    renderChecks();
+  } else {
+    if (chkContent)  chkContent.classList.add('hidden');
+    if (instContent) instContent.classList.remove('hidden');
+    if (typeof renderInstallments === 'function') { try { renderInstallments(); } catch(e){} }
+  }
+  chkState.currentTab = tab;
+}
+
+// ---------- باز کردن DatePicker برای چک ----------
+function openChkDatePicker() {
+  // اگر date picker اصلی app.js وجود داشت، ازش استفاده می‌کنیم
+  const dpOverlay = document.getElementById('dpOverlay');
+  if (dpOverlay && typeof window.openDatePicker === 'function') {
+    // callback بعد از تایید
+    window.__chkDateCallback = function(picked) {
+      if (picked && typeof picked === 'object') {
+        chkState.selectedDate = {
+          y: picked.y ?? picked.year ?? new Date().getFullYear(),
+          m: picked.m ?? picked.month ?? (new Date().getMonth()+1),
+          d: picked.d ?? picked.day ?? new Date().getDate(),
+          h: picked.h ?? picked.hour ?? 12,
+          min: picked.min ?? picked.minute ?? 0
+        };
+      } else if (typeof picked === 'number') {
+        const dt = new Date(picked);
+        chkState.selectedDate = {
+          y: dt.getFullYear(), m: dt.getMonth()+1, d: dt.getDate(),
+          h: dt.getHours(), min: dt.getMinutes()
+        };
+      }
+      updateChkDateDisplay();
+    };
+    try { window.openDatePicker(window.__chkDateCallback); return; } catch(e) {}
+  }
+
+  // fallback: prompt ساده
+  const now = chkState.selectedDate || (function(){
+    const d = new Date();
+    return { y: d.getFullYear(), m: d.getMonth()+1, d: d.getDate(), h: 12, min: 0 };
+  })();
+  const input = prompt(
+    'تاریخ سررسید (YYYY/MM/DD):',
+    `${now.y}/${String(now.m).padStart(2,'0')}/${String(now.d).padStart(2,'0')}`
+  );
+  if (!input) return;
+  const m = input.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if (m) {
+    chkState.selectedDate = {
+      y: +m[1], m: +m[2], d: +m[3], h: now.h, min: now.min
+    };
+    updateChkDateDisplay();
+  }
+}
+
+// ---------- اتصال رویدادها ----------
+function bindCheckEvents() {
+  // تب‌های داخلی
+  const innerTabs = document.getElementById('instInnerTabs');
+  if (innerTabs && !innerTabs.dataset.bound) {
+    innerTabs.dataset.bound = '1';
+    innerTabs.addEventListener('click', (e) => {
+      const btn = e.target.closest('.filter-chip');
+      if (!btn) return;
+      switchInstTab(btn.dataset.itab || 'installments');
+    });
+  }
+
+  // دکمه افزودن چک
+  const btnAdd = document.getElementById('btnAddChk');
+  if (btnAdd && !btnAdd.dataset.bound) {
+    btnAdd.dataset.bound = '1';
+    btnAdd.addEventListener('click', () => openCheckModal(null));
+  }
+
+  // فیلد مبلغ -> حروف
+  const amtInp = document.getElementById('chkAmount');
+  if (amtInp && !amtInp.dataset.bound) {
+    amtInp.dataset.bound = '1';
+    amtInp.addEventListener('input', (e) => {
+      const raw = e.target.value.replace(/[^\d]/g, '');
+      e.target.value = raw ? Number(raw).toLocaleString('en-US') : '';
+      updateChkWords();
+    });
+  }
+
+  // سریال فقط عدد
+  const serInp = document.getElementById('chkSerial');
+  if (serInp && !serInp.dataset.bound) {
+    serInp.dataset.bound = '1';
+    serInp.addEventListener('input', (e) => {
+      e.target.value = e.target.value.replace(/[^\d]/g, '').slice(0,4);
+    });
+  }
+
+  // انتخاب تاریخ
+  const dateBar = document.getElementById('chkDateBar');
+  if (dateBar && !dateBar.dataset.bound) {
+    dateBar.dataset.bound = '1';
+    dateBar.style.cursor = 'pointer';
+    dateBar.addEventListener('click', openChkDatePicker);
+  }
+
+  // دکمه‌های مودال
+  const okBtn = document.getElementById('chkOk');
+  if (okBtn && !okBtn.dataset.bound) {
+    okBtn.dataset.bound = '1';
+    okBtn.addEventListener('click', saveCheck);
+  }
+  const cancelBtn = document.getElementById('chkCancel');
+  if (cancelBtn && !cancelBtn.dataset.bound) {
+    cancelBtn.dataset.bound = '1';
+    cancelBtn.addEventListener('click', closeCheckModal);
+  }
+
+  // بستن با کلیک روی overlay
+  const overlay = document.getElementById('chkOverlay');
+  if (overlay && !overlay.dataset.bound) {
+    overlay.dataset.bound = '1';
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeCheckModal();
+    });
+  }
+
+  // Enter برای ذخیره
+  ['chkPayee','chkDesc','chkAmount','chkSerial'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && !el.dataset.boundEnter) {
+      el.dataset.boundEnter = '1';
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); saveCheck(); }
+      });
+    }
+  });
+}
+
+// ---------- hook روی switchTab اصلی ----------
+(function hookSwitchTab() {
+  if (typeof window.switchTab === 'function' && !window.__chkTabHooked) {
+    window.__chkTabHooked = true;
+    const original = window.switchTab;
+    window.switchTab = function(tab) {
+      const res = original.apply(this, arguments);
+      if (tab === 'installments') {
+        setTimeout(() => {
+          if (chkState.currentTab === 'checks') renderChecks();
+        }, 50);
+      }
+      return res;
+    };
+  }
+})();
+
+// ---------- init ----------
+(function initChecks() {
+  const ready = () => {
+    bindCheckEvents();
+    renderChecks();
+  };
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', ready);
+  } else {
+    ready();
+  }
+  // دوباره بعد از لود کامل (برای اطمینان از آماده بودن state)
+  window.addEventListener('load', () => {
+    bindCheckEvents();
+    renderChecks();
+  });
+})();
+
+// ---------- اکسپورت به window ----------
+window.renderChecks     = renderChecks;
+window.openCheckModal   = openCheckModal;
+window.closeCheckModal  = closeCheckModal;
+window.saveCheck        = saveCheck;
+window.markCheckPaid    = markCheckPaid;
+window.deleteCheck      = deleteCheck;
+window.switchInstTab    = switchInstTab;
+window.openChkDatePicker= openChkDatePicker;
