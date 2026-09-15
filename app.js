@@ -55,7 +55,8 @@ const state = {
   editingCardId:null,
   planMonth:{y:0,m:0},
   currentUser: null,
-  syncInProgress: false
+  syncInProgress: false,
+  innerTab: 'installments' // ✅ تب داخلی اقساط
 };
 
 function loadData(){
@@ -80,6 +81,7 @@ function mergeDefault(p){
     {accounts: p.accounts||[]},
     {transactions: p.transactions||[]},
     {installments: p.installments||[]},
+    {checks: p.checks||[]},
     {plans: p.plans||{}});
 }
 
@@ -330,19 +332,18 @@ function getInstStatus(inst){
     const todayMid = new Date(now);
     todayMid.setHours(0, 0, 0, 0);
     
-    // ✅ چک کن قسط کِی ساخته شده
+    // ✅ چک کن قسط توی ماه جاری ساخته شده یا نه
     const createdMonth = inst.createdMonth;
     let isNewlyCreated = false;
     
     if (createdMonth) {
       const [cy, cm] = createdMonth.split('-').map(Number);
-      // اگه قسط توی ماه جاری ساخته شده
       if (cy === today.y && cm === today.m) {
         isNewlyCreated = true;
       }
     }
     
-    // ✅ قدم ۱: سررسید این ماه
+    // ✅ سررسید این ماه
     const thisLen = jalaliMonthLength(today.y, today.m);
     const thisDay = Math.min(dueDay, thisLen);
     const thisKey = `${today.y}-${String(today.m).padStart(2, '0')}`;
@@ -350,54 +351,38 @@ function getInstStatus(inst){
     const thisMid = new Date(thisDate);
     thisMid.setHours(0, 0, 0, 0);
     
-    // ✅ قدم ۲: اگه قسط امروز ساخته شده و سررسید این ماه گذشته → از ماه بعد
-    let startFromNextMonth = false;
-    
-    if (isNewlyCreated && thisMid < todayMid) {
-      // قسط امروز ساخته شده و سررسید این ماه گذشته → از ماه بعد
-      startFromNextMonth = true;
-    }
-    
-    // ✅ قدم ۳: پیدا کردن سررسید مناسب
+    // ✅ تعیین سررسید هدف
     let targetY = today.y;
     let targetM = today.m;
     
-    if (startFromNextMonth) {
-      // از ماه بعد شروع کن
-      targetM++;
-      if (targetM > 12) { targetM = 1; targetY++; }
-    } else if (thisMid < todayMid) {
-      // سررسید این ماه گذشته ولی قسط قدیمیه → danger
-      const thisKey2 = `${today.y}-${String(today.m).padStart(2, '0')}`;
-      if (!paidMonths[thisKey2]) {
-        const pastDays = Math.round((todayMid - thisMid) / 86400000);
-        return {
-          status: 'danger',
-          count: 1,
-          totalAmount: inst.amount,
-          firstDue: thisDate,
-          firstUnpaid: { key: thisKey, y: today.y, m: today.m, dueDay: thisDay },
-          daysDiff: -pastDays,
-          isPast: true
-        };
+    if (thisMid < todayMid) {
+      // سررسید این ماه گذشته
+      if (isNewlyCreated) {
+        // قسط توی ماه جاری ساخته شده → از ماه بعد
+        targetM++;
+        if (targetM > 12) { targetM = 1; targetY++; }
+      } else {
+        // قسط قدیمیه و پرداخت نشده → danger
+        if (!paidMonths[thisKey]) {
+          return getDangerResult(inst, today, dueDay, todayMid);
+        }
+        // پرداخت شده → برو ماه بعد
+        targetM++;
+        if (targetM > 12) { targetM = 1; targetY++; }
       }
-      // پرداخت شده → برو ماه بعد
-      targetM++;
-      if (targetM > 12) { targetM = 1; targetY++; }
     }
     
-    // ✅ قدم ۴: اگه سررسید هدف پرداخت شده، برو ماه بعد
+    // ✅ اگه سررسید هدف پرداخت شده، برو ماه بعد
     let safety = 0;
     while (safety < 24) {
       safety++;
       const tKey = `${targetY}-${String(targetM).padStart(2, '0')}`;
       if (!paidMonths[tKey]) break;
-      
       targetM++;
       if (targetM > 12) { targetM = 1; targetY++; }
     }
     
-    // ✅ قدم ۵: سررسید نهایی
+    // ✅ سررسید نهایی
     const targetLen = jalaliMonthLength(targetY, targetM);
     const targetDay = Math.min(dueDay, targetLen);
     const targetKey = `${targetY}-${String(targetM).padStart(2, '0')}`;
@@ -407,38 +392,8 @@ function getInstStatus(inst){
     
     const daysDiff = Math.round((targetMid - todayMid) / 86400000);
     
-    // ✅ اگه ۱ ماه قبل پرداخت نشده → danger
-    let prevM = targetM - 1;
-    let prevY = targetY;
-    if (prevM < 1) { prevM = 12; prevY--; }
-    
-    // فقط اگه قسط قدیمیه، ماه قبل رو چک کن
-    if (!startFromNextMonth) {
-      const prevLen = jalaliMonthLength(prevY, prevM);
-      const prevDay = Math.min(dueDay, prevLen);
-      const prevKey = `${prevY}-${String(prevM).padStart(2, '0')}`;
-      const prevDate = jalaliToGregorian(prevY, prevM, prevDay);
-      const prevMid = new Date(prevDate);
-      prevMid.setHours(0, 0, 0, 0);
-      
-      if (prevMid < todayMid && !paidMonths[prevKey]) {
-        const pastDays = Math.round((todayMid - prevMid) / 86400000);
-        return {
-          status: 'danger',
-          count: 1,
-          totalAmount: inst.amount,
-          firstDue: prevDate,
-          firstUnpaid: { key: prevKey, y: prevY, m: prevM, dueDay: prevDay },
-          daysDiff: -pastDays,
-          isPast: true
-        };
-      }
-    }
-    
-    // ✅ سر وقت یا نزدیک
     let status = 'ok';
     if (daysDiff <= 3) status = 'warn';
-    if (daysDiff === 0) status = 'warn';
     
     return {
       status: status,
@@ -456,18 +411,99 @@ function getInstStatus(inst){
   }
 }
 
+/* ✅ حالت danger با ×N */
+function getDangerResult(inst, today, dueDay, todayMid) {
+  const paidMonths = inst.paidMonths || {};
+  const unpaidMonths = [];
+  
+  let startY = today.y;
+  let startM = today.m;
+  
+  if (inst.createdMonth) {
+    const [cy, cm] = inst.createdMonth.split('-').map(Number);
+    startY = cy;
+    startM = cm;
+  }
+  
+  let checkY = startY;
+  let checkM = startM;
+  let safety = 0;
+  
+  while (safety < 36) {
+    safety++;
+    
+    if (checkY > today.y || (checkY === today.y && checkM > today.m)) break;
+    
+    const cLen = jalaliMonthLength(checkY, checkM);
+    const cDay = Math.min(dueDay, cLen);
+    const cKey = `${checkY}-${String(checkM).padStart(2, '0')}`;
+    const cDate = jalaliToGregorian(checkY, checkM, cDay);
+    const cMid = new Date(cDate);
+    cMid.setHours(0, 0, 0, 0);
+    
+    if (cMid <= todayMid) {
+      if (!paidMonths[cKey]) {
+        unpaidMonths.push({
+          key: cKey,
+          y: checkY,
+          m: checkM,
+          dueDay: cDay,
+          date: cDate
+        });
+      }
+    }
+    
+    checkM++;
+    if (checkM > 12) { checkM = 1; checkY++; }
+  }
+  
+  if (unpaidMonths.length === 0) {
+    return { status: 'ok', count: 1, totalAmount: inst.amount, daysDiff: 0 };
+  }
+  
+  const oldest = unpaidMonths[0];
+  const oldestMid = new Date(oldest.date);
+  oldestMid.setHours(0, 0, 0, 0);
+  const pastDays = Math.round((todayMid - oldestMid) / 86400000);
+  
+  return {
+    status: 'danger',
+    count: unpaidMonths.length,
+    totalAmount: inst.amount * unpaidMonths.length,
+    firstDue: oldest.date,
+    firstUnpaid: oldest,
+    daysDiff: -pastDays,
+    isPast: true,
+    unpaidMonths: unpaidMonths
+  };
+}
+
 function getInstallmentDisplay(inst){
   const info = getInstStatus(inst);
   
-  const first = info.firstUnpaid;
-  if(!first){
+  if (!info.firstUnpaid) {
     return { status:'paid', count:0, totalAmount:0, meta:'✓ پرداخت شد' };
   }
   
+  const first = info.firstUnpaid;
   const monthName = jalaliMonthName(`${first.y}-${String(first.m).padStart(2, '0')}`);
   const daysDiff = info.daysDiff;
+  const count = info.count || 1;
   
-  if(daysDiff < 0){
+  // 🔴 عقب‌افتاده با ×N
+  if (daysDiff < 0 && count > 1) {
+    return {
+      status: 'danger',
+      count: count,
+      totalAmount: info.totalAmount,
+      meta: `${toFa(count)} ماه پرداخت نشده — از ${first.dueDay} ${monthName}`,
+      dueDate: info.firstDue,
+      unpaidMonths: info.unpaidMonths || [first]
+    };
+  }
+  
+  // 🔴 عقب‌افتاده (یه ماه)
+  if (daysDiff < 0) {
     return {
       status: 'danger',
       count: 1,
@@ -478,7 +514,8 @@ function getInstallmentDisplay(inst){
     };
   }
   
-  if(daysDiff === 0){
+  // 🟡 امروز سررسید
+  if (daysDiff === 0) {
     return {
       status: 'warn',
       count: 1,
@@ -489,7 +526,8 @@ function getInstallmentDisplay(inst){
     };
   }
   
-  if(daysDiff <= 3){
+  // 🟡 نزدیک
+  if (daysDiff <= 3) {
     return {
       status: 'warn',
       count: 1,
@@ -500,6 +538,7 @@ function getInstallmentDisplay(inst){
     };
   }
   
+  // 🔵 سر وقت
   return {
     status: 'ok',
     count: 1,
@@ -508,6 +547,69 @@ function getInstallmentDisplay(inst){
     dueDate: info.firstDue,
     unpaidMonths: [first]
   };
+}
+
+/* ===== ✅ محاسبه وضعیت چک ===== */
+function getCheckStatus(chk){
+  try {
+    const now = new Date();
+    const today = toJalaliParts(now);
+    const todayMid = new Date(now);
+    todayMid.setHours(0, 0, 0, 0);
+    
+    const dueDate = new Date(chk.dueDate);
+    const dueMid = new Date(dueDate);
+    dueMid.setHours(0, 0, 0, 0);
+    
+    const daysDiff = Math.round((dueMid - todayMid) / 86400000);
+    const dueJ = toJalaliParts(dueDate);
+    const monthName = jalaliMonthName(`${dueJ.y}-${String(dueJ.m).padStart(2, '0')}`);
+    
+    if (daysDiff < 0) {
+      // گذشته → باید پاک بشه
+      return { status: 'expired', daysDiff, meta: '' };
+    }
+    
+    if (daysDiff === 0) {
+      return {
+        status: 'warn',
+        daysDiff: 0,
+        meta: `⏰ امروز سررسید — ${dueJ.d} ${monthName}`
+      };
+    }
+    
+    if (daysDiff <= 3) {
+      return {
+        status: 'warn',
+        daysDiff,
+        meta: `⏰ ${toFa(daysDiff)} روز دیگه — ${dueJ.d} ${monthName}`
+      };
+    }
+    
+    return {
+      status: 'ok',
+      daysDiff,
+      meta: `📅 ${toFa(daysDiff)} روز دیگه — ${dueJ.d} ${monthName}`
+    };
+    
+  } catch(e){
+    console.error('خطا در getCheckStatus:', e, chk);
+    return { status: 'warn', daysDiff: 0, meta: 'خطا' };
+  }
+}
+
+/* ✅ حذف چک‌های گذشته */
+function cleanExpiredChecks(){
+  if (!state.data.checks) return;
+  const before = state.data.checks.length;
+  state.data.checks = state.data.checks.filter(chk => {
+    const status = getCheckStatus(chk);
+    return status.status !== 'expired';
+  });
+  if (state.data.checks.length !== before) {
+    saveData();
+    console.log(`🧹 ${before - state.data.checks.length} چک پاس شده حذف شد`);
+  }
 }
 
 function applyTheme(){
@@ -731,6 +833,7 @@ function enterMainApp(){
   const main = $('mainApp'); if(main) main.classList.remove('hidden');
   applyTheme();
   const hd = $('headerDate'); if(hd) hd.textContent = jalaliLong();
+  cleanExpiredChecks(); // ✅ پاک کردن چک‌های گذشته
   renderDashboard();
   if(state.currentUser){
     const emailEl = $('userEmail');
@@ -850,7 +953,7 @@ function updateSaveBtn(){
 }
 
 function openDatePicker(target='form'){
-  const d = target==='form'?state.form.date:(target==='pay'?state.payDate:(state.editForm.date||new Date()));
+  const d = target==='form'?state.form.date:(target==='pay'?state.payDate:(target==='check'?state.checkDate:(state.editForm.date||new Date())));
   const j = toJalaliParts(d);
   state.dp={year:j.y,month:j.m,day:j.d,target};
   const dh = $('dpHour'); if(dh) dh.value=d.getHours();
@@ -895,6 +998,7 @@ if(dpOkEl){
     if(state.dp.target==='form'){ state.form.date=g; updateDateBar(); }
     else if(state.dp.target==='edit'){ state.editForm.date=g; const ed = $('editDateValue'); if(ed) ed.textContent=relativeDateLabel(g)+' — '+fmtTime(g); }
     else if(state.dp.target==='pay'){ state.payDate=g; const pdv = $('payDateValue'); if(pdv) pdv.textContent=relativeDateLabel(g)+' — '+fmtTime(g); }
+    else if(state.dp.target==='check'){ state.checkDate=g; const cdv = $('chkDateValue'); if(cdv) cdv.textContent=relativeDateLabel(g)+' — '+fmtTime(g); }
     closeDatePicker();
   });
 }
@@ -1130,6 +1234,21 @@ function renderTransactions(){
 
 /* ===== Installments ===== */
 function renderInstallments(){
+  // ✅ تب داخلی
+  document.querySelectorAll('#instInnerTabs .filter-chip').forEach(b=>{
+    b.classList.toggle('active', b.dataset.itab === state.innerTab);
+  });
+  const instContent = $('instContent');
+  const chkContent = $('chkContent');
+  if (instContent) instContent.classList.toggle('hidden', state.innerTab !== 'installments');
+  if (chkContent) chkContent.classList.toggle('hidden', state.innerTab !== 'checks');
+  
+  if (state.innerTab === 'checks') {
+    renderChecks();
+    return;
+  }
+  
+  // اقساط
   const list = state.data.installments;
   const items = list.map(i=>({inst:i, disp:getInstallmentDisplay(i)}));
   const totalMonth = items.reduce((s,x)=>s+(x.disp.status!=='paid'?x.disp.totalAmount:0),0);
@@ -1145,19 +1264,18 @@ function renderInstallments(){
   });
   el.innerHTML = sorted.map(({inst, disp})=>{
     const status = disp.status;
-    const card = findAccount(inst.cardId);
-    let badge = ''; let meta = ''; let amount = fmtMoney(inst.amount);
+    const count = disp.count || 1;
+    let badge = ''; let amount = fmtMoney(inst.amount);
     if(status==='danger'){
-      badge = '<span class="inst-badge badge-danger">🚨 عقب‌افتاده</span>';
-      meta = disp.meta;
+      badge = count > 1
+        ? `<span class="inst-badge badge-danger">🚨 ×${toFa(count)} عقب‌افتاده</span>`
+        : '<span class="inst-badge badge-danger">🚨 عقب‌افتاده</span>';
       amount = fmtMoney(disp.totalAmount);
     } else if(status==='warn'){
       badge = '<span class="inst-badge badge-warn">⏰ نزدیک</span>';
-      meta = disp.meta;
       amount = fmtMoney(disp.totalAmount);
     } else {
       badge = '<span class="inst-badge badge-ok">📅 سر وقت</span>';
-      meta = disp.meta;
       amount = fmtMoney(disp.totalAmount);
     }
     return `<div class="inst-item ${status}">
@@ -1165,9 +1283,9 @@ function renderInstallments(){
         <div><span class="inst-name">${inst.name}</span>${badge}</div>
         <div class="inst-amount num">${amount}</div>
       </div>
-      <div class="inst-meta">${meta}</div>
+      <div class="inst-meta">${disp.meta}</div>
       <div class="inst-actions">
-        ${status!=='paid'?`<button class="inst-btn inst-pay" data-pay="${inst.id}">💳 پرداخت</button>`:''}
+        <button class="inst-btn inst-pay" data-pay="${inst.id}">💳 پرداخت</button>
         <button class="inst-btn inst-edit" data-edit="${inst.id}">✎ ویرایش</button>
         <button class="inst-btn inst-del" data-del="${inst.id}">✕ حذف</button>
       </div>
@@ -1184,6 +1302,163 @@ function renderInstallments(){
   });
 }
 
+/* ===== چک‌ها ===== */
+function renderChecks(){
+  if (!state.data.checks) state.data.checks = [];
+  
+  // پاک کردن چک‌های گذشته
+  cleanExpiredChecks();
+  
+  const list = state.data.checks;
+  const total = list.reduce((s,c)=>s+Number(c.amount),0);
+  const ct = $('chkMonthTotal'); if(ct) ct.textContent = fmtMoney(total);
+  const cc = $('chkCount'); if(cc) cc.textContent = toFa(list.length);
+  
+  const el = $('chkList');
+  if (!el) return;
+  
+  if (!list.length) {
+    el.innerHTML = '<div class="empty-mini">هنوز چکی ثبت نکردی<br>دکمه زیر رو بزن</div>';
+    return;
+  }
+  
+  // مرتب‌سازی بر اساس تاریخ
+  const sorted = [...list].sort((a,b)=>{
+    const sA = getCheckStatus(a);
+    const sB = getCheckStatus(b);
+    const order = {warn:0, ok:1};
+    return (order[sA.status]||0) - (order[sB.status]||0) || sA.daysDiff - sB.daysDiff;
+  });
+  
+  el.innerHTML = sorted.map(chk => {
+    const status = getCheckStatus(chk);
+    const statusClass = status.status === 'warn' ? 'warn' : 'ok';
+    const badge = status.status === 'warn'
+      ? '<span class="inst-badge badge-warn">⏰ نزدیک</span>'
+      : '<span class="inst-badge badge-ok">📅 سر وقت</span>';
+    
+    return `<div class="inst-item ${statusClass}">
+      <div class="inst-header">
+        <div>
+          <span class="inst-name">${chk.payee || 'بدون نام'}</span>
+          ${badge}
+        </div>
+        <div class="inst-amount num">${fmtMoney(chk.amount)}</div>
+      </div>
+      <div class="inst-meta">
+        ${chk.description ? `بابت: ${chk.description}<br>` : ''}
+        ${chk.serial ? `سریال: ...${chk.serial}<br>` : ''}
+        ${status.meta}
+      </div>
+      <div class="inst-actions">
+        <button class="inst-btn inst-edit" data-chk-edit="${chk.id}">✎ ویرایش</button>
+        <button class="inst-btn inst-del" data-chk-del="${chk.id}">✕ حذف</button>
+      </div>
+    </div>`;
+  }).join('');
+  
+  el.querySelectorAll('[data-chk-edit]').forEach(b=>b.addEventListener('click',()=>openChkModal(b.dataset.chkEdit)));
+  el.querySelectorAll('[data-chk-del]').forEach(b=>{
+    b.addEventListener('click',()=>{
+      if(!confirm('این چک حذف شود؟')) return;
+      state.data.checks = state.data.checks.filter(x=>x.id!==b.dataset.chkDel);
+      saveData(); renderChecks(); showToast('حذف شد');
+    });
+  });
+}
+
+function openChkModal(id=null){
+  state.editingChkId = id;
+  state.checkDate = new Date();
+  
+  if (id) {
+    const chk = state.data.checks.find(c=>c.id===id);
+    if (!chk) return;
+    const mt = $('chkModalTitle'); if(mt) mt.textContent = 'ویرایش چک';
+    const np = $('chkPayee'); if(np) np.value = chk.payee || '';
+    const nd = $('chkDesc'); if(nd) nd.value = chk.description || '';
+    const na = $('chkAmount'); if(na) na.value = Number(chk.amount).toLocaleString('en-US');
+    const ns = $('chkSerial'); if(ns) ns.value = chk.serial || '';
+    const nw = $('chkWords'); if(nw) nw.textContent = numberToPersianWords(chk.amount)+' تومان';
+    state.checkDate = new Date(chk.dueDate);
+  } else {
+    const mt = $('chkModalTitle'); if(mt) mt.textContent = 'افزودن چک';
+    const np = $('chkPayee'); if(np) np.value = '';
+    const nd = $('chkDesc'); if(nd) nd.value = '';
+    const na = $('chkAmount'); if(na) na.value = '';
+    const ns = $('chkSerial'); if(ns) ns.value = '';
+    const nw = $('chkWords'); if(nw) nw.textContent = '';
+  }
+  
+  const cdv = $('chkDateValue');
+  if (cdv) cdv.textContent = relativeDateLabel(state.checkDate) + ' — ' + fmtTime(state.checkDate);
+  
+  const co = $('chkOverlay');
+  if (co) co.classList.add('open');
+  setTimeout(()=>{ const np = $('chkPayee'); if(np) np.focus(); },300);
+}
+
+const btnAddChkEl = $('btnAddChk');
+if (btnAddChkEl) {
+  btnAddChkEl.addEventListener('click', ()=>openChkModal(null));
+}
+
+const chkAmountEl = $('chkAmount');
+if (chkAmountEl) {
+  chkAmountEl.addEventListener('input', e => {
+    const f = fmtNumInput(e.target.value); e.target.value = f;
+    const n = parseAmount(f);
+    const w = $('chkWords'); if (w) w.textContent = n ? numberToPersianWords(n) + ' تومان' : '';
+  });
+}
+
+const chkDateBarEl = $('chkDateBar');
+if (chkDateBarEl) chkDateBarEl.addEventListener('click', ()=>openDatePicker('check'));
+
+const chkCancelEl = $('chkCancel');
+if (chkCancelEl) chkCancelEl.addEventListener('click', ()=>{ const co = $('chkOverlay'); if (co) co.classList.remove('open'); });
+
+const chkOverlayEl = $('chkOverlay');
+if (chkOverlayEl) chkOverlayEl.addEventListener('click', e => { if (e.target === chkOverlayEl) chkOverlayEl.classList.remove('open'); });
+
+const chkOkEl = $('chkOk');
+if (chkOkEl) {
+  chkOkEl.addEventListener('click', () => {
+    const payee = ($('chkPayee')?.value || '').trim();
+    const description = ($('chkDesc')?.value || '').trim();
+    const amount = parseAmount($('chkAmount')?.value || '');
+    const serial = ($('chkSerial')?.value || '').trim();
+    
+    if (!payee) { showToast('نام گیرنده را وارد کن', 'error'); return; }
+    if (!amount) { showToast('مبلغ را وارد کن', 'error'); return; }
+    
+    if (state.editingChkId) {
+      const chk = state.data.checks.find(c=>c.id===state.editingChkId);
+      if (chk) {
+        chk.payee = payee;
+        chk.description = description;
+        chk.amount = amount;
+        chk.serial = serial;
+        chk.dueDate = state.checkDate.toISOString();
+      }
+      saveData();
+      const co = $('chkOverlay'); if (co) co.classList.remove('open');
+      renderChecks(); showToast('✅ ویرایش شد');
+    } else {
+      state.data.checks.push({
+        id: uid(),
+        payee, description, amount, serial,
+        dueDate: state.checkDate.toISOString(),
+        createdAt: new Date().toISOString()
+      });
+      saveData();
+      const co = $('chkOverlay'); if (co) co.classList.remove('open');
+      renderChecks(); showToast('✅ اضافه شد');
+    }
+  });
+}
+
+/* ===== Pay Modal ===== */
 function openInstModal(id=null){
   state.editingInstId = id;
   if(id){
@@ -1242,9 +1517,13 @@ if(instOkEl){
       const io = $('instOverlay'); if(io) io.classList.remove('open');
       renderInstallments(); renderDashboard(); showToast('✅ ویرایش شد');
     } else {
+      const now = new Date();
+      const nowJ = toJalaliParts(now);
+      const createdMonth = `${nowJ.y}-${String(nowJ.m).padStart(2,'0')}`;
       state.data.installments.push({
         id:uid(), name, amount, day, cardId,
-        paidMonths:{}, paidDates:{}
+        paidMonths:{}, paidDates:{},
+        createdMonth
       });
       saveData();
       const io = $('instOverlay'); if(io) io.classList.remove('open');
@@ -1256,10 +1535,13 @@ if(instOkEl){
 function openPayModal(id){
   const inst = state.data.installments.find(x=>x.id===id); if(!inst) return;
   state.payInstId = id; state.payDate = new Date();
-  const disp = getInstallmentDisplay(inst);
+  const info = getInstStatus(inst);
+  const totalAmount = info.totalAmount || inst.amount;
+  const count = info.count || 1;
+  
   const pt = $('payTitle'); if(pt) pt.textContent = '💳 پرداخت ' + inst.name;
-  const ps = $('paySubtitle'); if(ps) ps.textContent = `سررسید: روز ${toFa(inst.day)}`;
-  const pa = $('payAmount'); if(pa) pa.textContent = fmtMoney(inst.amount);
+  const ps = $('paySubtitle'); if(ps) ps.textContent = count > 1 ? `شامل ${toFa(count)} ماه پرداخت‌نشده` : `سررسید: روز ${toFa(inst.day)}`;
+  const pa = $('payAmount'); if(pa) pa.textContent = fmtMoney(totalAmount);
   const pcs = $('payCardSelect');
   if(pcs){
     pcs.innerHTML = '<option value="">— انتخاب کارت —</option>' + state.data.accounts.map(a=>{
@@ -1302,11 +1584,13 @@ if(payConfirmEl){
     const pcs = $('payCardSelect');
     const cardId = pcs ? pcs.value : '';
     if(!cardId){ if(pcs) pcs.classList.add('error'); showToast('لطفاً یک کارت انتخاب کن','error'); return; }
+    const info = getInstStatus(inst);
+    const totalAmount = info.totalAmount || inst.amount;
     const bal = getAccountBalance(cardId);
-    if(inst.amount > bal){ showToast(`⛔ موجودی کافی نیست! موجودی: ${fmtMoney(bal)}`,'error'); return; }
+    if(totalAmount > bal){ showToast(`⛔ موجودی کافی نیست! موجودی: ${fmtMoney(bal)}`,'error'); return; }
     state.data.transactions.push({
-      id:uid(), type:'expense', amount:inst.amount, category:'installment',
-      accountId:cardId, note:`قسط: ${inst.name}`,
+      id:uid(), type:'expense', amount:totalAmount, category:'installment',
+      accountId:cardId, note:`قسط: ${inst.name}${info.count>1?` (×${info.count})`:''}`,
       date:state.payDate.toISOString(), installmentId:inst.id
     });
     if(!inst.paidMonths) inst.paidMonths = {};
@@ -1674,6 +1958,13 @@ document.querySelectorAll('#catTypeToggle .filter-chip').forEach(b=>{
     state.catManageType=b.dataset.ctype;
     document.querySelectorAll('#catTypeToggle .filter-chip').forEach(x=>x.classList.remove('active'));
     b.classList.add('active'); renderSettings();
+  });
+});
+
+document.querySelectorAll('#instInnerTabs .filter-chip').forEach(b=>{
+  b.addEventListener('click',()=>{
+    state.innerTab = b.dataset.itab;
+    renderInstallments();
   });
 });
 
