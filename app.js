@@ -322,107 +322,136 @@ function addJalaliMonths(jy, jm, n){
 }
 
 /* ===== محاسبه وضعیت قسط ===== */
-function getInstStatus(inst){
+ffunction getInstStatus(inst){
   try {
     const now = new Date();
     const today = toJalaliParts(now);
     const paidMonths = Object.keys(inst.paidMonths||{});
     const dueDay = Math.max(1, Math.min(31, inst.day || 1));
     
-    // قدم ۱: سررسید بعدی (از امروز به بعد)
-    let searchY = today.y;
-    let searchM = today.m;
+    // ✅ قدم ۱: پیدا کردن سررسید بعدی (از امروز به بعد)
+    let nextY = today.y;
+    let nextM = today.m;
     
-    const thisMonthLen = jalaliMonthLength(searchY, searchM);
+    // اگه سررسید این ماه گذشته، برو ماه بعد
+    const thisMonthLen = jalaliMonthLength(nextY, nextM);
     const thisMonthDay = Math.min(dueDay, thisMonthLen);
     
-    // اگه سررسید این ماه گذشته → برو ماه بعد
     if(thisMonthDay < today.d){
-      searchM++;
-      if(searchM > 12){ searchM = 1; searchY++; }
+      nextM++;
+      if(nextM > 12){ nextM = 1; nextY++; }
     }
     
-    // قدم ۲: اولین سررسید پرداخت‌نشده از امروز به بعد
-    let nextUnpaid = null;
-    let nextDueDate = null;
+    // ✅ قدم ۲: چک کن سررسید بعدی پرداخت شده یا نه
     let safety = 0;
-    
-    while(safety < 24 && !nextUnpaid){
+    while(safety < 24){
       safety++;
-      
-      const monthLen = jalaliMonthLength(searchY, searchM);
+      const monthLen = jalaliMonthLength(nextY, nextM);
       const clampedDay = Math.min(dueDay, monthLen);
-      const monthKey = `${searchY}-${String(searchM).padStart(2, '0')}`;
+      const monthKey = `${nextY}-${String(nextM).padStart(2, '0')}`;
       
       if(!paidMonths.includes(monthKey)){
-        nextDueDate = jalaliToGregorian(searchY, searchM, clampedDay);
-        nextUnpaid = {key: monthKey, y: searchY, m: searchM, dueDay: clampedDay};
+        // این سررسید پرداخت نشده → همینه
         break;
       }
       
-      searchM++;
-      if(searchM > 12){ searchM = 1; searchY++; }
+      // پرداخت شده → برو ماه بعد
+      nextM++;
+      if(nextM > 12){ nextM = 1; nextY++; }
     }
     
-    if(!nextUnpaid){
-      return {status:'paid', unpaidMonths:[], totalAmount:0, count:0, daysDiff:null};
-    }
+    const monthLen = jalaliMonthLength(nextY, nextM);
+    const clampedDay = Math.min(dueDay, monthLen);
+    const monthKey = `${nextY}-${String(nextM).padStart(2, '0')}`;
+    const dueDate = jalaliToGregorian(nextY, nextM, clampedDay);
     
-    // قدم ۳: فاصله روز
+    // ✅ قدم ۳: محاسبه فاصله روز
     const todayMid = new Date(now);
     todayMid.setHours(0, 0, 0, 0);
-    const dueMid = new Date(nextDueDate);
+    const dueMid = new Date(dueDate);
     dueMid.setHours(0, 0, 0, 0);
     const daysDiff = Math.round((dueMid - todayMid) / 86400000);
     
-    // قدم ۴: فقط ۳ ماه اخیر رو چک کن (نه ۱۲ ماه)
-    const unpaidList = [];
+    // ✅ قدم ۴: چک کن سررسید ماه قبل پرداخت شده یا نه
+    // اگه پرداخت نشده، یعنی عقب‌افتاده
+    let prevM = today.m;
+    let prevY = today.y;
     
-    for(let i = 1; i <= 3; i++){
-      let checkM = today.m - i;
-      let checkY = today.y;
-      while(checkM < 1){ checkM += 12; checkY--; }
+    const thisLen = jalaliMonthLength(prevY, prevM);
+    const thisDay = Math.min(dueDay, thisLen);
+    
+    // اگه سررسید این ماه گذشته، ماه قبل رو چک کن
+    if(thisDay >= today.d){
+      prevM--;
+      if(prevM < 1){ prevM = 12; prevY--; }
+    }
+    
+    const prevLen = jalaliMonthLength(prevY, prevM);
+    const prevDay = Math.min(dueDay, prevLen);
+    const prevKey = `${prevY}-${String(prevM).padStart(2, '0')}`;
+    const prevPaid = paidMonths.includes(prevKey);
+    
+    // اگه سررسید ماه قبل پرداخت نشده → danger
+    if(!prevPaid){
+      const prevDate = jalaliToGregorian(prevY, prevM, prevDay);
+      const prevMid = new Date(prevDate);
+      prevMid.setHours(0, 0, 0, 0);
+      const pastDays = Math.round((todayMid - prevMid) / 86400000);
       
-      const cLen = jalaliMonthLength(checkY, checkM);
-      const cDay = Math.min(dueDay, cLen);
-      const cKey = `${checkY}-${String(checkM).padStart(2, '0')}`;
-      
-      if(!paidMonths.includes(cKey)){
-        unpaidList.push({key: cKey, y: checkY, m: checkM, dueDay: cDay, isPast: true});
+      // اگه سررسید ماه قبل هم واقعاً گذشته
+      if(pastDays > 0){
+        // چک کن ماه قبل‌تر هم پرداخت نشده؟
+        const unpaidList = [];
+        let checkY = prevY, checkM = prevM, s2 = 0;
+        while(s2 < 12){
+          s2++;
+          const cLen = jalaliMonthLength(checkY, checkM);
+          const cDay = Math.min(dueDay, cLen);
+          const cKey = `${checkY}-${String(checkM).padStart(2, '0')}`;
+          const cDate = jalaliToGregorian(checkY, checkM, cDay);
+          const cMid = new Date(cDate);
+          cMid.setHours(0, 0, 0, 0);
+          const cDays = Math.round((todayMid - cMid) / 86400000);
+          
+          if(cDays < 0) break; // این سررسید نرسیده
+          if(paidMonths.includes(cKey)) break; // پرداخت شده
+          
+          unpaidList.push({key: cKey, y: checkY, m: checkM, dueDay: cDay});
+          
+          checkM--;
+          if(checkM < 1){ checkM = 12; checkY--; }
+        }
+        
+        const oldest = unpaidList[unpaidList.length - 1];
+        const oldestDate = jalaliToGregorian(oldest.y, oldest.m, oldest.dueDay);
+        const oldestMid = new Date(oldestDate);
+        oldestMid.setHours(0, 0, 0, 0);
+        const oldPastDays = Math.round((todayMid - oldestMid) / 86400000);
+        
+        return {
+          status: 'danger',
+          unpaidMonths: unpaidList,
+          totalAmount: inst.amount * unpaidList.length,
+          firstDue: oldestDate,
+          firstUnpaid: oldest,
+          daysDiff: -oldPastDays,
+          count: unpaidList.length,
+          isPast: true
+        };
       }
     }
     
-    // اگه ماه‌های گذشته پرداخت‌نشده داریم
-    if(unpaidList.length > 0){
-      const oldest = unpaidList[unpaidList.length - 1];
-      const oldestDate = jalaliToGregorian(oldest.y, oldest.m, oldest.dueDay);
-      const oldestMid = new Date(oldestDate);
-      oldestMid.setHours(0, 0, 0, 0);
-      const pastDays = Math.round((todayMid - oldestMid) / 86400000);
-      
-      return {
-        status: 'danger',
-        unpaidMonths: unpaidList,
-        totalAmount: inst.amount * unpaidList.length,
-        firstDue: oldestDate,
-        firstUnpaid: oldest,
-        daysDiff: -pastDays,
-        count: unpaidList.length,
-        isPast: true
-      };
-    }
-    
-    // فقط سررسید آینده داریم
+    // ✅ قدم ۵: تعیین وضعیت
     let status = 'ok';
     if(daysDiff <= 3) status = 'warn';
     if(daysDiff === 0) status = 'warn';
     
     return {
       status: status,
-      unpaidMonths: [nextUnpaid],
+      unpaidMonths: [{key: monthKey, y: nextY, m: nextM, dueDay: clampedDay}],
       totalAmount: inst.amount,
-      firstDue: nextDueDate,
-      firstUnpaid: nextUnpaid,
+      firstDue: dueDate,
+      firstUnpaid: {key: monthKey, y: nextY, m: nextM, dueDay: clampedDay},
       daysDiff: daysDiff,
       count: 1,
       isPast: false
