@@ -332,18 +332,20 @@ function getInstStatus(inst){
     const todayMid = new Date(now);
     todayMid.setHours(0, 0, 0, 0);
     
-    // ✅ چک کن قسط توی ماه جاری ساخته شده یا نه
-    const createdMonth = inst.createdMonth;
-    let isNewlyCreated = false;
+    // ✅ قدم ۱: اول از همه، createdMonth رو بگیر یا ست کن
+    let createdMonth = inst.createdMonth;
     
-    if (createdMonth) {
-      const [cy, cm] = createdMonth.split('-').map(Number);
-      if (cy === today.y && cm === today.m) {
-        isNewlyCreated = true;
-      }
+    // اگه createdMonth نداره → امروز رو بذار
+    if (!createdMonth) {
+      createdMonth = jalaliMonthKey(now);
+      inst.createdMonth = createdMonth;
+      // ذخیره نمی‌کنیم اینجا، ولی توی حافظه ست می‌شه
     }
     
-    // ✅ سررسید این ماه
+    const [cy, cm] = createdMonth.split('-').map(Number);
+    const isNewlyCreated = (cy === today.y && cm === today.m);
+    
+    // ✅ قدم ۲: محاسبه سررسید این ماه
     const thisLen = jalaliMonthLength(today.y, today.m);
     const thisDay = Math.min(dueDay, thisLen);
     const thisKey = `${today.y}-${String(today.m).padStart(2, '0')}`;
@@ -351,28 +353,29 @@ function getInstStatus(inst){
     const thisMid = new Date(thisDate);
     thisMid.setHours(0, 0, 0, 0);
     
-    // ✅ تعیین سررسید هدف
+    // ✅ قدم ۳: تصمیم‌گیری
     let targetY = today.y;
     let targetM = today.m;
     
+    // اگه سررسید این ماه گذشته → از ماه بعد شروع کن
     if (thisMid < todayMid) {
-      // سررسید این ماه گذشته
+      // ✅ اگه قسط توی همین ماه ساخته شده → از ماه بعد
+      // ✅ اگه قسط قدیمی و پرداخت‌نشده → danger
       if (isNewlyCreated) {
-        // قسط توی ماه جاری ساخته شده → از ماه بعد
+        // قسط جدید → از ماه بعد
         targetM++;
         if (targetM > 12) { targetM = 1; targetY++; }
+      } else if (!paidMonths[thisKey]) {
+        // قسط قدیمی و پرداخت‌نشده → danger
+        return getDangerResult(inst, today, dueDay, todayMid, cy, cm);
       } else {
-        // قسط قدیمیه و پرداخت نشده → danger
-        if (!paidMonths[thisKey]) {
-          return getDangerResult(inst, today, dueDay, todayMid);
-        }
-        // پرداخت شده → برو ماه بعد
+        // قسط قدیمی و پرداخت‌شده → برو ماه بعد
         targetM++;
         if (targetM > 12) { targetM = 1; targetY++; }
       }
     }
     
-    // ✅ اگه سررسید هدف پرداخت شده، برو ماه بعد
+    // ✅ قدم ۴: اگه سررسید هدف پرداخت شده، برو ماه بعد
     let safety = 0;
     while (safety < 24) {
       safety++;
@@ -382,7 +385,7 @@ function getInstStatus(inst){
       if (targetM > 12) { targetM = 1; targetY++; }
     }
     
-    // ✅ سررسید نهایی
+    // ✅ قدم ۵: سررسید نهایی
     const targetLen = jalaliMonthLength(targetY, targetM);
     const targetDay = Math.min(dueDay, targetLen);
     const targetKey = `${targetY}-${String(targetM).padStart(2, '0')}`;
@@ -409,6 +412,65 @@ function getInstStatus(inst){
     console.error('خطا در getInstStatus:', e, inst);
     return { status: 'danger', count: 1, totalAmount: inst.amount, daysDiff: 0 };
   }
+}
+
+/* ✅ حالت danger با ×N */
+function getDangerResult(inst, today, dueDay, todayMid, cy, cm) {
+  const paidMonths = inst.paidMonths || {};
+  const unpaidMonths = [];
+  
+  // از ماه ساخت تا امروز
+  let checkY = cy;
+  let checkM = cm;
+  let safety = 0;
+  
+  while (safety < 36) {
+    safety++;
+    
+    if (checkY > today.y || (checkY === today.y && checkM > today.m)) break;
+    
+    const cLen = jalaliMonthLength(checkY, checkM);
+    const cDay = Math.min(dueDay, cLen);
+    const cKey = `${checkY}-${String(checkM).padStart(2, '0')}`;
+    const cDate = jalaliToGregorian(checkY, checkM, cDay);
+    const cMid = new Date(cDate);
+    cMid.setHours(0, 0, 0, 0);
+    
+    if (cMid <= todayMid) {
+      if (!paidMonths[cKey]) {
+        unpaidMonths.push({
+          key: cKey,
+          y: checkY,
+          m: checkM,
+          dueDay: cDay,
+          date: cDate
+        });
+      }
+    }
+    
+    checkM++;
+    if (checkM > 12) { checkM = 1; checkY++; }
+  }
+  
+  if (unpaidMonths.length === 0) {
+    return { status: 'ok', count: 1, totalAmount: inst.amount, daysDiff: 0 };
+  }
+  
+  const oldest = unpaidMonths[0];
+  const oldestMid = new Date(oldest.date);
+  oldestMid.setHours(0, 0, 0, 0);
+  const pastDays = Math.round((todayMid - oldestMid) / 86400000);
+  
+  return {
+    status: 'danger',
+    count: unpaidMonths.length,
+    totalAmount: inst.amount * unpaidMonths.length,
+    firstDue: oldest.date,
+    firstUnpaid: oldest,
+    daysDiff: -pastDays,
+    isPast: true,
+    unpaidMonths: unpaidMonths
+  };
 }
 
 /* ✅ حالت danger با ×N */
