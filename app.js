@@ -322,7 +322,7 @@ function addJalaliMonths(jy, jm, n){
 }
 
 /* ===== محاسبه وضعیت قسط ===== */
-ffunction getInstStatus(inst){
+function getInstStatus(inst){
   try {
     const now = new Date();
     const today = toJalaliParts(now);
