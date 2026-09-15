@@ -26,7 +26,7 @@
   </div>
 </div>
 
-<!-- ============ صفحه لاگین / ثبت‌نام ============ -->
+<!-- ============ Auth Screen ============ -->
 <div id="authScreen" class="hidden">
   <div class="auth-container">
     <div class="auth-logo">ج</div>
@@ -181,22 +181,51 @@
       <div id="txList"></div>
     </div>
 
-    <!-- Installments -->
+    <!-- ============ Installments + Checks ============ -->
     <div id="tab-installments" class="hidden">
-      <div class="card" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;border:none">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <div>
-            <div style="font-size:11px;opacity:.75">📅 مجموع اقساط این ماه</div>
-            <div id="instMonthTotal" class="num" style="font-size:18px;font-weight:800">۰ تومان</div>
-          </div>
-          <div style="text-align:left">
-            <div style="font-size:11px;opacity:.75">پرداخت‌شده</div>
-            <div id="instPaidTotal" class="num" style="font-size:14px;font-weight:700">۰</div>
+
+      <!-- تب‌های داخلی -->
+      <div class="filter-row" id="instInnerTabs" style="margin-bottom:14px">
+        <button class="filter-chip active" data-itab="installments">📅 اقساط</button>
+        <button class="filter-chip" data-itab="checks" style="background:#fef3c7;color:#b45309">💳 چک‌ها</button>
+      </div>
+
+      <!-- ===== بخش اقساط ===== -->
+      <div id="instContent">
+        <div class="card" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;border:none">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div style="font-size:11px;opacity:.75">📅 مجموع اقساط این ماه</div>
+              <div id="instMonthTotal" class="num" style="font-size:18px;font-weight:800">۰ تومان</div>
+            </div>
+            <div style="text-align:left">
+              <div style="font-size:11px;opacity:.75">پرداخت‌شده</div>
+              <div id="instPaidTotal" class="num" style="font-size:14px;font-weight:700">۰</div>
+            </div>
           </div>
         </div>
+        <div id="instList"></div>
+        <button id="btnAddInst" class="btn-soft btn-accent" style="margin-top:8px">+ افزودن قسط جدید</button>
       </div>
-      <div id="instList"></div>
-      <button id="btnAddInst" class="btn-soft btn-accent" style="margin-top:8px">+ افزودن قسط جدید</button>
+
+      <!-- ===== بخش چک‌ها ===== -->
+      <div id="chkContent" class="hidden">
+        <div class="card" style="background:linear-gradient(135deg,#f59e0b,#d97706);color:white;border:none">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div style="font-size:11px;opacity:.75">💳 مجموع چک‌ها</div>
+              <div id="chkTotal" class="num" style="font-size:18px;font-weight:800">۰ تومان</div>
+            </div>
+            <div style="text-align:left">
+              <div style="font-size:11px;opacity:.75">تعداد</div>
+              <div id="chkCount" class="num" style="font-size:14px;font-weight:700">۰</div>
+            </div>
+          </div>
+        </div>
+        <div id="chkList"></div>
+        <button id="btnAddChk" class="btn-soft" style="margin-top:8px;background:#fef3c7;color:#b45309;font-weight:700">+ افزودن چک جدید</button>
+      </div>
+
     </div>
 
     <!-- Plan -->
@@ -366,7 +395,7 @@
   </nav>
 </div>
 
-<!-- Quick Add -->
+<!-- Quick Add Modal -->
 <div id="modalOverlay" class="modal-overlay"></div>
 <div id="modalSheet" class="modal-sheet">
   <div class="modal-handle"></div>
@@ -408,7 +437,7 @@
   </div>
 </div>
 
-<!-- Edit -->
+<!-- Edit Modal -->
 <div id="editOverlay" class="modal-overlay"></div>
 <div id="editSheet" class="modal-sheet">
   <div class="modal-handle"></div>
@@ -512,6 +541,30 @@
     <div class="dp-actions">
       <button class="dp-cancel" id="instCancel">انصراف</button>
       <button class="dp-ok" id="instOk">ذخیره</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Check Modal ============ -->
+<div id="chkOverlay" class="dp-overlay">
+  <div class="dp-box" style="border-top:4px solid #f59e0b">
+    <h3 class="dp-title" id="chkModalTitle" style="color:#b45309">💳 افزودن چک</h3>
+    <div class="field-label">نام گیرنده</div>
+    <input id="chkPayee" class="field-input" placeholder="مثلاً: آقای احمدی">
+    <div class="field-label">بابت</div>
+    <input id="chkDesc" class="field-input" placeholder="مثلاً: خرید لوازم خانگی">
+    <div class="field-label">مبلغ (تومان)</div>
+    <input id="chkAmount" class="field-input num" type="text" inputmode="numeric" placeholder="۰">
+    <div class="amount-words" id="chkWords" style="text-align:center;margin-bottom:10px;color:#b45309;font-weight:600;font-size:12px"></div>
+    <div class="field-label">شماره سریال (۴ رقم آخر)</div>
+    <input id="chkSerial" class="field-input num" type="text" inputmode="numeric" placeholder="1234" maxlength="4">
+    <div class="date-bar" id="chkDateBar" style="border-color:#fcd34d">
+      <div><div class="label">تاریخ سررسید</div><div class="value" id="chkDateValue">—</div></div>
+      <span style="color:#b45309">📅</span>
+    </div>
+    <div class="dp-actions">
+      <button class="dp-cancel" id="chkCancel">انصراف</button>
+      <button class="dp-ok" id="chkOk" style="background:#f59e0b">ذخیره</button>
     </div>
   </div>
 </div>
