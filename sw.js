@@ -1,23 +1,23 @@
 /* Service Worker — جیب من */
-const CACHE_NAME = 'jib-man-v5';
+
+const CACHE_NAME = 'jib-man-v10';
 
 const ASSETS = [
   './',
   './index.html',
+  './style.css',
   './manifest.json',
   './icon-192.png',
-  './icon-512.png',
+  './icon-512.png'
 ];
 
 /* نصب */
 self.addEventListener('install', (e) => {
   e.waitUntil(
     caches.open(CACHE_NAME)
-      .then(cache => {
-        return Promise.all(
-          ASSETS.map(url => cache.add(url).catch(() => null))
-        );
-      })
+      .then(cache => Promise.all(
+        ASSETS.map(url => cache.add(url).catch(() => null))
+      ))
       .then(() => self.skipWaiting())
   );
 });
@@ -40,16 +40,12 @@ self.addEventListener('fetch', (e) => {
   
   const url = new URL(req.url);
   
-  // فقط از دامنه خودمون
+  // ✅ درخواست‌های خارجی (Supabase, CDN) → از شبکه، کش نکن
   if (url.origin !== location.origin) {
-    // CDN ها: از شبکه، اگه نشد از کش
-    e.respondWith(
-      fetch(req).catch(() => caches.match(req))
-    );
-    return;
+    return; // بذار مرورگر خودش مدیریت کنه
   }
-
-  // فایل‌های خودمون: Cache First
+  
+  // ✅ فایل‌های خودمون: Cache First
   e.respondWith(
     caches.match(req).then(cached => {
       const net = fetch(req).then(res => {
@@ -64,7 +60,6 @@ self.addEventListener('fetch', (e) => {
   );
 });
 
-/* پیام از صفحه */
 self.addEventListener('message', (e) => {
   if (e.data === 'skipWaiting') self.skipWaiting();
 });
